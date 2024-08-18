@@ -558,15 +558,19 @@ bool LKRun::Init()
     }
 
     int countParOrder = 1;
-    fPar -> Require("LKRun/Name",      "run",          "name of the run", "", countParOrder++);
-    fPar -> Require("LKRun/RunID",     "1",            "run number", "", countParOrder++);
-    fPar -> Require("LKRun/Tag",       "tag",          "tag", "t", countParOrder++);
-    fPar -> Require("LKRun/OutputPath","{lilak_data}", "path to the output. Default path {lilak_data} is lilak/data/", "", countParOrder++);
-    fPar -> Require("LKRun/InputPath", "/path/to/in/", "LKRun will search files from input paths when LKRun/SearchRun", "t", countParOrder++);
-    fPar -> Require("LKRun/SearchRun", "mfm",          "search input files with LKRun/RunID. opt=mfm: search mfm files, opt=[tag]: search run_runNo.*.[tag].root. Cannot be used with LKRun/InputFile", "t", countParOrder++);
-    fPar -> Require("LKRun/Division",  "0",            "division within the run [optional]", "t", countParOrder++);
-    fPar -> Require("LKRun/InputFile", "path/to/input/data",   "input file. Cannot be used with LKRun/SearchRun", "t", countParOrder++);
-    fPar -> Require("LKRun/FriendFile","path/to/friend/data",  "input friend file", "t", countParOrder++);
+    fPar -> Require("LKRun/Name",         "run",            "name of the run", "",  countParOrder++);
+    fPar -> Require("LKRun/RunID",        0,                "run number",      "",  countParOrder++);
+    fPar -> Require("LKRun/Tag",          "tag",            "tag",             "t", countParOrder++);
+    fPar -> Require("LKRun/OutputPath",   "{lilak_data}",   "path to the output. Default path {lilak_data} is lilak/data/",  "", countParOrder++);
+    fPar -> Require("LKRun/InputPath",    "/path/to/in/",   "LKRun will search files from input paths when LKRun/SearchRun", "t/", countParOrder++);
+    fPar -> Require("LKRun/SearchRun",    "mfm",            "search input files with LKRun/RunID. opt=mfm: search mfm files, opt=[tag]: search run_runNo.*.[tag].root", "t", countParOrder++);
+    fPar -> Require("LKRun/Division",     0,                "division within the run [optional]", "t/", countParOrder++);
+    fPar -> Require("LKRun/InputFile",    "to/input/file",  "input file. Cannot be used with LKRun/SearchRun", "t", countParOrder++);
+    fPar -> Require("LKRun/FriendFile",   "to/friend/file", "input friend file",                  "t/", countParOrder++);
+    fPar -> Require("LKRun/RunIDList",    "1, 2, 3, 4",     "list of run numbers separated by ,", "t/", countParOrder++);
+    fPar -> Require("LKRun/RunIDRange",   "1, 10",          "list of run numbers ranged by ,",    "t/", countParOrder++);
+    fPar -> Require("LKRun/EntriesLimit",         100000,   "limit number of run entries",        "t/", countParOrder++);
+    fPar -> Require("LKRun/EventCountForMessage", 20000,    "",                                   "t", countParOrder++);
 
     if (!fRunNameIsSet) {
         fPar -> UpdatePar(fRunName,  "LKRun/Name");
@@ -575,6 +579,28 @@ bool LKRun::Init()
         fPar -> UpdatePar(fTag,      "LKRun/Tag");
         if (fPar -> CheckPar("LKRun/Name"))
             fRunNameIsSet = true;
+    }
+
+    if (fPar -> CheckPar("LKRun/RunIDRange"))
+    {
+        auto n = fPar -> GetParN("LKRun/RunIDRange");
+        if (n%2!=0) {
+            lk_error << "LKRun/RunIDRange number of parameter is " << n << "!!" << endl;
+            return false;
+        }
+        for (auto i=0; i<n/2; ++i)
+        {
+            auto runID1 = fPar -> GetParInt("LKRun/RunIDRange",i*2+0);
+            auto runID2 = fPar -> GetParInt("LKRun/RunIDRange",i*2+1);
+            for (auto runID=runID1; runID<=runID2; ++runID)
+                fRunIDList.push_back(runID);
+        }
+    }
+    else if (fPar -> CheckPar("LKRun/RunIDList"))
+    {
+        auto n = fPar -> GetParN("LKRun/RunIDList");
+        for (auto i=0; i<n; ++i)
+            fRunIDList.push_back(fPar->GetParInt("LKRun/RunIDList",i));
     }
 
     if (fOutputPath.IsNull()) {
@@ -634,9 +660,20 @@ bool LKRun::Init()
             }
 
             fSearchOption = fPar -> GetParString("LKRun/SearchRun");
-            vector<TString> inputFiles = SearchRunFiles(fRunID,fSearchOption);
-            for (auto fileName : inputFiles)
-                fInputFileNameArray.push_back(fileName);
+            if (fRunIDList.size()>0)
+            {
+                for (auto runID : fRunIDList)
+                {
+                    vector<TString> inputFiles = SearchRunFiles(runID,fSearchOption);
+                    for (auto fileName : inputFiles)
+                        fInputFileNameArray.push_back(fileName);
+                }
+            }
+            else {
+                vector<TString> inputFiles = SearchRunFiles(fRunID,fSearchOption);
+                for (auto fileName : inputFiles)
+                    fInputFileNameArray.push_back(fileName);
+            }
         }
 
         if (fSearchOption!="mfm" && fInputFileNameArray.size()>0) {
@@ -825,8 +862,21 @@ bool LKRun::Init()
 
         fOutputFileName.ReplaceAll("//","/");
         lk_info << "Output file : " << fOutputFileName << endl;
-        fOutputFile = new TFile(fOutputFileName, "recreate");
-        fOutputTree = new TTree("event", "");
+        bool updateOutputFile = false;
+        fPar -> UpdatePar(updateOutputFile,"LKRun/UpdateOuputFile");
+        if (updateOutputFile)
+        {
+            lk_info << "Updating existing file" << endl;
+            fOutputFile = new TFile(fOutputFileName, "update");
+            fOutputTree = (TTree*) fOutputFile -> Get("event");
+            if (fOutputTree==nullptr)
+                fOutputTree = new TTree("event", "");
+        }
+        else
+        {
+            fOutputFile = new TFile(fOutputFileName, "recreate");
+            fOutputTree = new TTree("event", "");
+        }
     }
 
     if (!fOutputFileName.IsNull() && !fInputFileName.IsNull()) {
@@ -852,9 +902,12 @@ bool LKRun::Init()
         for (Int_t iFriend = idxInput; iFriend < fFriendFileNameArray.size(); iFriend++)
             fRunHeader -> AddPar(Form("FriendFile/%d",iFriend),fFriendFileNameArray[iFriend]);
         fRunHeader -> AddPar("OutputFile",fOutputFileName);
-
         fRunHeader -> AddPar("RunName",fRunName);
         fRunHeader -> AddPar("RunID",fRunID);
+        for (auto i=0; i<fRunIDList.size(); ++i) {
+            auto runID = fRunIDList.at(i);
+            fRunHeader -> AddPar(Form("run_%d",i),runID);
+        }
         fRunHeader -> AddPar("Division",fDivision);
         fRunHeader -> AddPar("Tag",fTag);
         fRunHeader -> AddPar("Split",fSplit);
@@ -900,6 +953,7 @@ bool LKRun::Init()
     for (auto iPlane=0; iPlane<fDetectorSystem->GetNumPlanes(); ++iPlane) {
         auto plane = fDetectorSystem -> GetDetectorPlane(iPlane);
         plane -> SetDataFromBranch();
+        plane -> Init2();
     }
 
     if (fInitialized) {
@@ -909,12 +963,17 @@ bool LKRun::Init()
     else
         lk_error << "[LKRun] FAILED initializing tasks." << endl;
 
+    fPar -> UpdatePar(fNumEntriesLimit,"LKRun/EntriesLimit");
+    if (fNumEntriesLimit>0 && fNumEntries>fNumEntriesLimit) {
+        fNumEntries = fNumEntriesLimit;
+        lk_info << "entries limited to " << fNumEntries << endl;
+    }
+
     fCurrentEventID = 0;
 
     fPar -> UpdatePar(fAutoTerminate,"LKRun/AutoTerminate true # automatically terminate root after end of run");
     fPar -> Sort();
 
-    fPar -> Require("LKRun/EventCountForMessage","20000","", "t", countParOrder++);
     fPar -> UpdatePar(fEventCountForMessage,"LKRun/EventCountForMessage 20000");
 
     if (fInitialized) {
@@ -1069,11 +1128,13 @@ TClonesArray *LKRun::GetBranchA(Int_t idx)
     return (TClonesArray *) nullptr;
 }
 
-TClonesArray *LKRun::GetBranchA(TString name)
+TClonesArray *LKRun::GetBranchA(TString name, bool complainIfDoNotExist)
 {
     auto dataContainer = fBranchPtrMap[name];
-    if (dataContainer==nullptr)
-        lk_error << "Branch " << name << " does not exist!" << endl;
+    if (dataContainer==nullptr) {
+        if (complainIfDoNotExist)
+            lk_error << "Branch " << name << " does not exist!" << endl;
+    }
     //else if (dataContainer->InheritsFrom("TClonesArray")==false)
     //    lk_error << "Branch " << name << " is not TClonesArray object!" << endl;
     else
@@ -1134,7 +1195,10 @@ bool LKRun::WriteOutputFile()
     fOutputTree -> Write();
     for (auto iObject=0; iObject<fCountRunObjects; ++iObject)
         fRunObjectPtr[iObject] -> Write(fRunObjectName[iObject],TObject::kSingleKey);
-    fOutputFile -> Close();
+    if (fUserDrawingArray!=nullptr&&fUserDrawingArray->GetEntries()>0)
+        fUserDrawingArray -> Write("drawings",TObject::kSingleKey);
+    if (fAutoTerminate)
+        fOutputFile -> Close();
 
     TString linkName = TString(LILAK_PATH) + "/data/lk_last_output.root";
     unlink(linkName.Data());
@@ -1171,7 +1235,7 @@ void LKRun::Run(Long64_t numEvents)
     }
 }
 
-void LKRun::RunOnline()
+void LKRun::RunOnline(Long64_t numEvents)
 {
     e_cout << endl;
 
@@ -1180,7 +1244,7 @@ void LKRun::RunOnline()
 
     if (fUsingEventTrigger) {
         fCurrentEventID = -1;
-        fEventTrigger -> RunOnline();
+        fEventTrigger -> RunOnline(numEvents);
         LKRun::EndOfRun();
     }
     else {
@@ -1549,9 +1613,9 @@ vector<TString> LKRun::SearchRunFiles(int searchRunNo, TString searchOption)
             ///////////////////////////////////////////////////////////////////////////////////////////////////////////
             else if (!searchOption.IsNull())
             {
-                if (sysFile->IsDirectory()==false && fileName.Index("stark_")==0 && fileName.EndsWith("conv.root"))
+                if (sysFile->IsDirectory()==false && fileName.Index((fRunName+"_"))==0 && fileName.EndsWith(searchOption+".root"))
                 {
-                    int runNo = TString(fileName(7,4)).Atoi();
+                    int runNo = TString(fileName(fRunName.Sizeof(),4)).Atoi();
                     int division = 0;
                     auto tokens = fileName.Tokenize(".");
                     /*
@@ -1566,7 +1630,7 @@ vector<TString> LKRun::SearchRunFiles(int searchRunNo, TString searchOption)
                     }
                     */
                     int numTokens = tokens->GetEntries();
-                    if (numTokens>3)
+                    if (numTokens>=3)
                     {
                         TString tag = TString(((TObjString*)tokens->At(numTokens-2))->GetString());
                         if (runNo==searchRunNo && tag==searchOption)
@@ -1584,4 +1648,67 @@ vector<TString> LKRun::SearchRunFiles(int searchRunNo, TString searchOption)
         lk_info << "Found " << file << endl;
 
     return matchingFiles;
+}
+
+bool LKRun::AddDrawing(TObject* drawing, TString label, int i)
+{
+    if (fUserDrawingArray==nullptr)
+        fUserDrawingArray = new TObjArray();
+    TObjArray* labelSpace = (TObjArray*) fUserDrawingArray -> FindObject(label);
+    TObjArray* chosenSpace = labelSpace;
+    if (labelSpace==nullptr) {
+        labelSpace = new TObjArray();
+        labelSpace -> SetName(label);
+        fUserDrawingArray -> Add(labelSpace);
+        chosenSpace = labelSpace;
+    }
+    if (i>0) {
+        TObjArray* indexSpace = nullptr;
+        if (labelSpace->GetEntries()>i) {
+            indexSpace = (TObjArray*) labelSpace -> At(i);
+            chosenSpace = indexSpace;
+        }
+        if (indexSpace==nullptr) {
+            indexSpace = new TObjArray();
+            indexSpace -> SetName(Form("%s%s",label.Data(),(i<0?"":Form("_%d",i))));
+            labelSpace -> AddAtAndExpand(indexSpace,i);
+            chosenSpace = indexSpace;
+        }
+    }
+
+    chosenSpace -> Add(drawing);
+
+    return true;
+}
+
+void LKRun::PrintDrawings()
+{
+    auto numLabels = fUserDrawingArray -> GetEntries(); 
+    for (auto iLabel=0; iLabel<numLabels; ++iLabel)
+    {
+        auto labelSpace = (TObjArray*) fUserDrawingArray -> At(iLabel);
+        auto numDrawings = labelSpace -> GetEntries();
+        if (numDrawings==0) continue;
+        auto obj = labelSpace -> At(0);
+        if (obj->InheritsFrom(TObjArray::Class()))
+        {
+            auto numIndex = numDrawings;
+            for (auto iIndex=0; iIndex<numIndex; ++iIndex) {
+                auto indexSpace = (TObjArray*) fUserDrawingArray -> At(iLabel);
+                numDrawings = indexSpace -> GetEntries();
+                lk_info << indexSpace -> GetName() << " containing " << numDrawings << " drawings" << endl;
+                for (auto iDrawing=0; iDrawing<numDrawings; ++iDrawing)
+                {
+                    auto drawing = indexSpace -> At(iDrawing);
+                }
+            }
+        }
+        else {
+            lk_info << labelSpace -> GetName() << " containing " << numDrawings << " drawings" << endl;
+            for (auto iDrawing=0; iDrawing<numDrawings; ++iDrawing)
+            {
+                auto drawing = labelSpace -> At(iDrawing);
+            }
+        }
+    }
 }

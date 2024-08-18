@@ -169,7 +169,7 @@ class LKRun : public LKTask
         //TObject *GetBranch(Int_t idx);
         //TObject *KeepBranch(TString name);
 
-        TClonesArray *GetBranchA(TString name); ///< Get branch in TClonesArray by name. Return nullptr if branch is not inherited from TClonesArray
+        TClonesArray *GetBranchA(TString name, bool complainIfDoNotExist=true); ///< Get branch in TClonesArray by name. Return nullptr if branch is not inherited from TClonesArray
         TClonesArray *GetBranchA(Int_t idx);
         TClonesArray *KeepBranchA(TString name);
         Int_t GetNumBranches() const { return fCountBranches; }
@@ -183,6 +183,7 @@ class LKRun : public LKTask
         LKDetectorPlane *FindDetectorPlane(const char *name);
 
         void SetEntries(Long64_t num) { fNumEntries = num; } ///< Set total number of entries. Use only input do not exist.
+        void SetEntriesLimit(Long64_t num) { fNumEntriesLimit = num; } ///< Set total number of entries. Use only input do not exist.
         Long64_t GetEntries() const { return fNumEntries; } ///< Get total number of entries
         /// GetEntry current from input tree. For options 
         /// For options see TTree::GetEntry : https://root.cern.ch/doc/master/classTTree.html#a14c88179bd5fd2116228707d6addea9f
@@ -212,7 +213,7 @@ class LKRun : public LKTask
         void Run(Long64_t startID, Long64_t endID); ///< Run in range: from startID to endID
         bool RunEvent(Long64_t eventID=-2); ///< Run event of eventID
         bool RunSelectedEvent(TString selection); ///< Find event that matches the given selection and run. The selection is set from first call of RunSelectedEvent.
-        void RunOnline();
+        void RunOnline(Long64_t numEvents=-1);
         //void RunSplit(Long64_t eventID);
 
         /**
@@ -254,6 +255,10 @@ class LKRun : public LKTask
         /// Search and return array of matching files -> run_runNo*.[tag].root
         vector<TString> SearchRunFiles(int runNo, TString tag);
 
+        bool AddDrawing(TObject* drawing, TString label, int i=-1);
+        void PrintDrawings();
+        TObjArray* GetUserDrawingArray() { return fUserDrawingArray; }
+
     protected:
         void ProcessWriteExitLog();
 
@@ -261,6 +266,7 @@ class LKRun : public LKTask
         bool fRunNameIsSet = false;
         TString fRunName = "run";
         Int_t   fRunID = -1;
+        vector<Int_t> fRunIDList;
         Int_t   fDivision = -1;
 
         bool fRunInit = false;
@@ -309,6 +315,7 @@ class LKRun : public LKTask
         std::map<TString, TObject*> fRunObjectPtrMap;
 
         Long64_t fNumEntries = 0;
+        Long64_t fNumEntriesLimit = 0;
 
         //TTreeFormula* fSelect = nullptr;
         //Long64_t fCurrentEventIDForSelection = 0;
@@ -354,6 +361,8 @@ class LKRun : public LKTask
         bool fFillCurrentEvent = true;
 
         TString fExitLogPath;
+
+        TObjArray* fUserDrawingArray = nullptr;
 
     private:
         static LKRun *fInstance;

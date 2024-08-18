@@ -240,9 +240,14 @@ class LKParameterContainer : public TObjArray
          * i: InputFile
          * c: Conditional
          * #: LineComment
+         * /: CommentOut
          */
         void Require(TString name, TString value, TString comment, TString type="", int compare=-1);
+        void Require(TString name, int value, TString comment, TString type="", int compare=-1) { Require(name, Form("%d",value), comment, type, compare); }
+        void Require(TString name, double value, TString comment, TString type="", int compare=-1) { Require(name, Form("%f",value), comment, type, compare); }
+
         void SetParType(TString name, TString type) { auto par = FindParFree(name, false); if (par!=nullptr) par -> SetType(type); }
+        LKParameter *FindPar(TString givenName, bool terminateIfNull=false) const;
 
     protected:
         LKParameter *SetPar    (TString name, TString  raw, TString val, TString comment, int parameterType=1);
@@ -255,7 +260,6 @@ class LKParameterContainer : public TObjArray
         LKParameter *SetLineComment(TString comment);
 
         LKParameter *FindParFree(TString givenName, bool terminateIfNull=false);
-        LKParameter *FindPar(TString givenName, bool terminateIfNull=false) const;
 
     private:
         void ProcessTypeError(TString name, TString val, TString type) const;

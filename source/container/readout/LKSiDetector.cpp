@@ -36,7 +36,7 @@ const char* LKSiDetector::GetTitle() const
     if (fNumSides==1) {
         TString ttlJ = "";
         if (fNumJunctionUD==2) ttlJ = " (U/D)";
-        return Form("%s Idx(%d) ID(%d), single side detector with %d strips%s" + ttlJ,GetTitleType(),fDetIndex,fDetID,fNumJunctionStrips,ttlJ.Data());
+        return Form("%s Idx(%d) ID(%d), single side detector with %d strips%s" + ttlJ,GetTitleType().Data(),fDetIndex,fDetID,fNumJunctionStrips,ttlJ.Data());
     }
     //else if (fNumSides==2)
     //{
@@ -44,7 +44,7 @@ const char* LKSiDetector::GetTitle() const
         TString ttlO = "";
         if (fNumJunctionUD==2) ttlJ = " (U/D)";
         if (fNumOhmicLR==2) ttlO = " (L/R)";
-        return Form("%s Idx(%d) ID(%d), junction %d strips%s, ohmic %d strips%s" + ttlJ,GetTitleType(),fDetIndex,fDetID,fNumJunctionStrips,ttlJ.Data(),fNumOhmicStrips,ttlO.Data());
+        return Form("%s Idx(%d) ID(%d), junction %d strips%s, ohmic %d strips%s" + ttlJ,GetTitleType().Data(),fDetIndex,fDetID,fNumJunctionStrips,ttlJ.Data(),fNumOhmicStrips,ttlO.Data());
     //}
 }
 
@@ -275,6 +275,12 @@ void LKSiDetector::AddChannel(LKSiChannel* channel)
     }
 }
 
+void LKSiDetector::AddEnergy(int side, int strip, int lr, double energy)
+{
+    fCountArray[side][strip][lr]++;
+    fEnergyArray[side][strip][lr] += energy;
+}
+
 void LKSiDetector::FillHistEnergy()
 {
     for(int side=0; side<fNumSides; ++side)
@@ -338,6 +344,29 @@ void LKSiDetector::FillHistCount()
                 for(int lr=0; lr<fNumOhmicLR; ++lr) {
                     fHistOhmic -> SetBinContent(lr+1,strip+1,fCountArray[side][strip][lr]);
                     auto rgChannel = GetRegisteredChannel(side,strip,lr); if (rgChannel!=nullptr) rgChannel -> SetEnergy(fCountArray[side][strip][lr]);
+                }
+            }
+        }
+    }
+}
+
+void LKSiDetector::FillHistValue(double value)
+{
+    for(int side=0; side<fNumSides; ++side)
+    {
+        if (side==0) {
+            for(int strip=0; strip<fNumJunctionStrips; ++strip) {
+                for(int lr=0; lr<fNumJunctionUD; ++lr) {
+                    fHistJunction -> SetBinContent(strip+1,lr+1,value);
+                    auto rgChannel = GetRegisteredChannel(side,strip,lr); if (rgChannel!=nullptr) rgChannel -> SetEnergy(value);
+                }
+            }
+        }
+        if (side==1) {
+            for(int strip=0; strip<fNumOhmicStrips; ++strip) {
+                for(int lr=0; lr<fNumOhmicLR; ++lr) {
+                    fHistOhmic -> SetBinContent(lr+1,strip+1,value);
+                    auto rgChannel = GetRegisteredChannel(side,strip,lr); if (rgChannel!=nullptr) rgChannel -> SetEnergy(value);
                 }
             }
         }

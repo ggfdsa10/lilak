@@ -165,8 +165,8 @@ void LKParameterContainer::ReplaceVariables(TString &valInput)
         else if (parName2=="lilak_home"    ) replaceTo = LILAK_PATH;
         else if (parName2=="lilak_path"    ) replaceTo = LILAK_PATH;
         else if (parName2=="lilak_version" ) replaceTo = LILAK_VERSION;
-        else if (parName2=="lilak_data"    ) replaceTo = TString(LILAK_PATH)+"/data/";
-        else if (parName2=="lilak_common"  ) replaceTo = TString(LILAK_PATH)+"/common/";
+        else if (parName2=="lilak_data"    ) replaceTo = TString(LILAK_PATH)+"/data";
+        else if (parName2=="lilak_common"  ) replaceTo = TString(LILAK_PATH)+"/common";
         else if (parName2.EndsWith("]")) {
             int idx = TString(parName2(parName2.Index("[")+1,parName2.Index("]")-parName2.Index("[")-1)).Atoi();
             parName2 = parName2(0,parName2.Index("["));
@@ -177,7 +177,7 @@ void LKParameterContainer::ReplaceVariables(TString &valInput)
         }
         if (setWidth) {
             int replaceWidth = replaceTo.Sizeof() - 1;
-            lk_error << "!!" << " width is " << width << ", replaced width is " << replaceWidth << endl;
+            //lk_error << "!!" << " width is " << width << ", replaced width is " << replaceWidth << endl;
             if (width>replaceWidth) {
                 int dWidth = width - replaceWidth;
                 TString addSpace = " ";
@@ -929,11 +929,25 @@ Bool_t LKParameterContainer::AddPar(TString name, TString value, TString comment
             }
             else if (name[0]=='@') {
                 parameter0.SetIsConditional();
-                name = name(1, name.Sizeof()-2);
-                groupName = name(0,name.Index("/"));
-                if (name.Index("/")<0)
+                if (name.Index("/")<0) {
                     lk_error << "Parameter name " << name << " is out of naming rule" << endl;
-                if (CheckPar(groupName)==false&&CheckValue(groupName)==false)
+                    break;
+                }
+                name = name(1, name.Sizeof()-2);
+                bool setParIfGroupNameIsNotSet = false;
+                if (name[0]=='-') {
+                    setParIfGroupNameIsNotSet = true;
+                    name = name(1, name.Sizeof()-2);
+                }
+                groupName = name(0,name.Index("/"));
+                if (setParIfGroupNameIsNotSet) {
+                    allowSetPar = false;
+                    if (CheckPar(groupName)==false)
+                        allowSetPar = true;
+                    else if (GetParString(groupName).IsNull())
+                        allowSetPar = true;
+                }
+                else if (CheckPar(groupName)==false&&CheckValue(groupName)==false)
                     allowSetPar = false; // @todo save as hidden parameter when they are not allowed to be set
                 continue;
             }
@@ -1057,13 +1071,14 @@ void LKParameterContainer::Require(TString name, TString value, TString comment,
     if (fParameterCollectionMode && fCollectedParameterContainer->FindPar(name)==nullptr)
     {
         auto parc = fCollectedParameterContainer -> SetPar(name, value, value, comment);
-        parc -> SetType(type);
+        if (!type.IsNull()) parc -> SetType(type);
         if (compare>=0) parc -> SetCompare(compare);
     }
 
     auto par = FindParFree(name,false);
     if (par!=nullptr) {
-        par -> SetType(type);
+        type.ReplaceAll("/","");
+        if (!type.IsNull()) par -> SetType(type);
         if (compare>=0) par -> SetCompare(compare);
     }
 }
@@ -1130,6 +1145,7 @@ LKParameter *LKParameterContainer::FindParFree(TString givenName, bool terminate
 
     TIter iterator(this);
     LKParameter *parameter = nullptr;
+    LKParameter *parameterFound = nullptr;
     bool parameterIsFound = false;
     while ((parameter = dynamic_cast<LKParameter*>(iterator())))
     {
@@ -1141,12 +1157,14 @@ LKParameter *LKParameterContainer::FindParFree(TString givenName, bool terminate
                 auto mainName = parameter -> GetMainName();
                 if (mainName==justName) {
                     parameterIsFound = true;
-                    break;
+                    parameterFound = parameter;
+                    //break;
                 }
             }
             else if (parName==justName) {
                 parameterIsFound = true;
-                break;
+                parameterFound = parameter;
+                //break;
             }
         }
     }
@@ -1154,13 +1172,13 @@ LKParameter *LKParameterContainer::FindParFree(TString givenName, bool terminate
     if (fParameterCollectionMode && fCollectedParameterContainer->FindPar(givenName)==nullptr)
     {
         if (parameterIsFound)
-            fCollectedParameterContainer -> AddLine(Form("%s",parameter->GetLine().Data()));
+            fCollectedParameterContainer -> AddLine(Form("%s",parameterFound->GetLine().Data()));
         else
             fCollectedParameterContainer -> AddLine(Form("%s",givenName.Data()));
     }
 
     if (parameterIsFound)
-        return parameter;
+        return parameterFound;
 
     if (terminateIfNull) {
         lk_error << "parameter " << justName << " does not exist!" << endl;

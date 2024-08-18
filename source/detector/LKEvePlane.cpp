@@ -37,7 +37,7 @@ LKChannelAnalyzer* LKEvePlane::GetChannelAnalyzer(int id)
         double threshold = 300;
         fPar -> UpdatePar(threshold,fName+"/EveThreshold  300  # threshold for default peak finding method");
         fChannelAnalyzer -> SetThreshold(threshold);
-        fChannelAnalyzer -> Print();
+        //fChannelAnalyzer -> Print();
     }
 
     fPar -> UpdatePar(fFillOptionSelected, fName+"/fillOption hit");
@@ -621,7 +621,7 @@ bool LKEvePlane::SetDataFromBranch()
 
     LKPad *pad = nullptr;
     TIter next(fChannelArray);
-    while (pad = (LKPad*) next())
+    while ((pad = (LKPad*) next()))
         pad -> SetDataIndex(-1);
 
     if (fRawDataArray==nullptr)
@@ -799,7 +799,7 @@ void LKEvePlane::FillDataToHistEventDisplay1(Option_t *option)
         title = "Hit";
         TIter nextHit(fHitArray);
         LKHit* hit = nullptr;
-        while (hit = (LKHit*) nextHit())
+        while ((hit = (LKHit*) nextHit()))
         {
             auto pos = hit -> GetPosition(fAxisDrift);
             auto i = pos.I();
@@ -814,7 +814,7 @@ void LKEvePlane::FillDataToHistEventDisplay1(Option_t *option)
         {
             title = "Preview Data";
             TIter nextRawData(fChannelArray);
-            while (pad = (LKPad*) nextRawData())
+            while ((pad = (LKPad*) nextRawData()))
             {
                 auto idx = pad -> GetDataIndex();
                 if (idx<0)
@@ -835,7 +835,7 @@ void LKEvePlane::FillDataToHistEventDisplay1(Option_t *option)
         {
             title = "Raw Data";
             TIter nextRawData(fChannelArray);
-            while (pad = (LKPad*) nextRawData())
+            while ((pad = (LKPad*) nextRawData()))
             {
                 auto idx = pad -> GetDataIndex();
                 if (idx<0)
@@ -1043,6 +1043,11 @@ void LKEvePlane::ClickedControlEvent1(int selectedBin)
     fHistControlEvent2 -> SetBinContent(fBinCtrlAcmltEv, fAccumulateEvents);
 
     //Draw();
+}
+
+void LKEvePlane::RunAllEvents()
+{
+    ClickedControlEvent2(fBinCtrlFillAEv);
 }
 
 void LKEvePlane::ClickedControlEvent2(int selectedBin)
