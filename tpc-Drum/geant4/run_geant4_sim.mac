@@ -1,0 +1,20 @@
+# (lilak) geant4 run macro
+
+LKG4Manager/
+    VisMode false
+    G4InputFile data/single_proton_100MeV.gen
+    G4OutputFile data/run_g4sim.root
+    SuppressG4InitMessage true
+    #G4VisFile # if G4VisFile is given instead of G4/ group below, G4VisFile will be used with visualization mode
+    #G4MacroFile # if G4MacroFile is given instead of G4/ group below, G4MacroFile will be used with simulation mode
+
+persistency/
+    MCTrackVertex true
+    MCSecondary true
+    MCEdepSum true
+    MCStep true
+
+G4/ # instead of using separate geant4 macro users can put the commands under G4/ group
+    run/setCutForAGivenParticle e- 500. mm
+    run/suppressPP true
+    run/beamOnAll # run all events in gen file
