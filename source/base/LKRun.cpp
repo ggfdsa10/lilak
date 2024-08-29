@@ -16,6 +16,7 @@
 #include "TSystemFile.h"
 
 #include "LKRun.h"
+#include "LKClassFactory.h"
 
 ClassImp(LKRun)
 
@@ -557,7 +558,44 @@ bool LKRun::Init()
         return false;
     }
 
+    TString printAfterInit = "";
+    Long64_t runAfterInit = -1;
+    Long64_t exeAfterInit = -1;
+    TString collecteParAndPrintTo = "";
+    if (fIsLILAKRun)
+    {
+        LKClassFactory classFactory(this);
+        auto lilakPar = fPar -> CreateGroupContainer("lilak");
+        TIter nextAdd(lilakPar->CreateMultiParContainer("add"));
+        LKParameter* parameter;
+        while ((parameter=(LKParameter*)nextAdd()))
+            classFactory.Add(parameter->GetString());
+        if (lilakPar->CheckPar("run")) {
+            runAfterInit = lilakPar -> GetParLong("run");
+            //runAfterInit = lilakPar -> GetParLong("run",0);
+            //if (lilakPar->GetParN("run")>1) lilakPar -> UpdatePar(fEventCountForMessage,"run",1);
+        }
+        else if (lilakPar->CheckPar("execute"))
+            exeAfterInit = lilakPar -> GetParLong("execute");
+        if (lilakPar->CheckPar("print")) {
+            printAfterInit = lilakPar -> GetParString("print");
+            if (printAfterInit.IsNull())
+                printAfterInit = "all";
+        }
+        if (lilakPar->CheckPar("collect_par")) {
+            collecteParAndPrintTo = lilakPar -> GetParString("collect_par");
+            if (collecteParAndPrintTo.IsNull()) collecteParAndPrintTo = "print";
+            fPar -> SetCollectParameters(true);
+        }
+    }
+
     int countParOrder = 1;
+    fPar -> Require("lilak/add",          "LKTask",         "add task or detector class", "t/", countParOrder++);
+    fPar -> Require("lilak/print",        "all",            "print after init gen:par:out:in:det:task", "t/", countParOrder++);
+    fPar -> Require("lilak/collect_par",  "print",          "file name to write collected parameters. 'print' to print out on screen", "t/", countParOrder++);
+    fPar -> Require("lilak/run",          "0",              "run [no] after init. Execute all events if [no] is 0", "t/", countParOrder++);
+    fPar -> Require("lilak/execute",      "0",              "execute event [no] after init", "t/", countParOrder++);
+
     fPar -> Require("LKRun/Name",         "run",            "name of the run", "",  countParOrder++);
     fPar -> Require("LKRun/RunID",        0,                "run number",      "",  countParOrder++);
     fPar -> Require("LKRun/Tag",          "tag",            "tag",             "t", countParOrder++);
@@ -632,6 +670,9 @@ bool LKRun::Init()
     else if (fPar->CheckPar("LKRun/SearchRun"))
         useSearchRunParameter = true;
 
+    TString searchOption;
+    TString searchOption2;
+
     Int_t idxInput = 1;
     if (fInputFileName.IsNull())
     {
@@ -659,24 +700,30 @@ bool LKRun::Init()
                     fInputPathArray.push_back(pathName);
             }
 
-            fSearchOption = fPar -> GetParString("LKRun/SearchRun");
+            auto numSearchOptions = fPar -> GetParN("LKRun/SearchRun");
+            if (numSearchOptions==1)
+                searchOption = fPar -> GetParString("LKRun/SearchRun");
+            if (numSearchOptions==2) {
+                searchOption = fPar -> GetParString("LKRun/SearchRun",0);
+                searchOption2 = fPar -> GetParString("LKRun/SearchRun",1);
+            }
             if (fRunIDList.size()>0)
             {
                 for (auto runID : fRunIDList)
                 {
-                    vector<TString> inputFiles = SearchRunFiles(runID,fSearchOption);
+                    vector<TString> inputFiles = SearchRunFiles(runID,searchOption, searchOption2);
                     for (auto fileName : inputFiles)
                         fInputFileNameArray.push_back(fileName);
                 }
             }
             else {
-                vector<TString> inputFiles = SearchRunFiles(fRunID,fSearchOption);
+                vector<TString> inputFiles = SearchRunFiles(fRunID,searchOption, searchOption2);
                 for (auto fileName : inputFiles)
                     fInputFileNameArray.push_back(fileName);
             }
         }
 
-        if (fSearchOption!="mfm" && fInputFileNameArray.size()>0) {
+        if (searchOption!="mfm" && fInputFileNameArray.size()>0) {
             fInputFileName = fInputFileNameArray[0];
             idxInput = 1;
         }
@@ -863,7 +910,7 @@ bool LKRun::Init()
         fOutputFileName.ReplaceAll("//","/");
         lk_info << "Output file : " << fOutputFileName << endl;
         bool updateOutputFile = false;
-        fPar -> UpdatePar(updateOutputFile,"LKRun/UpdateOuputFile");
+        fPar -> UpdatePar(updateOutputFile,"LKRun/UpdateOutputFile");
         if (updateOutputFile)
         {
             lk_info << "Updating existing file" << endl;
@@ -941,7 +988,7 @@ bool LKRun::Init()
         lk_info << "Initializing event trigger task " << fEventTrigger -> GetName() << "." << endl;
 
         for (auto fileName : fInputFileNameArray)
-            fEventTrigger -> AddTriggerInputFile(fileName, fSearchOption);
+            fEventTrigger -> AddTriggerInputFile(fileName, searchOption);
 
         if (fEventTrigger -> Init() == false) {
             lk_warning << "Initialization failed!" << endl;
@@ -974,11 +1021,33 @@ bool LKRun::Init()
     fPar -> UpdatePar(fAutoTerminate,"LKRun/AutoTerminate true # automatically terminate root after end of run");
     fPar -> Sort();
 
-    fPar -> UpdatePar(fEventCountForMessage,"LKRun/EventCountForMessage 20000");
+    if (fPar -> CheckPar("LKRun/EventCountForMessage"))
+    {
+        fPar -> UpdatePar(fEventCountForMessage,"LKRun/EventCountForMessage");
+        lk_info << "Event count for message = " << fEventCountForMessage << endl;
+    }
 
-    if (fInitialized) {
-        lk_info << "Initialized!" << endl;
-        return fInitialized;
+    lk_info << "Initialized!" << endl;
+
+    if (!collecteParAndPrintTo.IsNull()) {
+        fPar -> PrintCollection(collecteParAndPrintTo);
+        fPar -> SetCollectParameters(false);
+    }
+
+    if (!printAfterInit.IsNull())
+        Print(printAfterInit);
+
+    if (runAfterInit>=0)
+    {
+        if (runAfterInit==0) Run();
+        else Run(runAfterInit);
+        return true;
+    }
+
+    else if (exeAfterInit>=0)
+    {
+        ExecuteEvent(exeAfterInit);
+        return true;
     }
 
     return fInitialized;
@@ -1358,6 +1427,7 @@ bool LKRun::ExecuteEvent(Long64_t eventID)
         fCurrentEventID = eventID;
     }
 
+
     if (numEntriesMatter)
     {
         if (fCurrentEventID > fNumEntries - 1) {
@@ -1492,6 +1562,9 @@ bool LKRun::StartOfRun(Long64_t numEvents)
 
 bool LKRun::EndOfRun()
 {
+    if (fSkipEndOfRun)
+        return false;
+
     e_cout << endl;
     lk_info << "Executing of EndOfRunTask" << endl;
     if (fUsingEventTrigger)
@@ -1584,7 +1657,7 @@ LKDetectorSystem *LKRun::GetDetectorSystem() const { return fDetectorSystem; }
 LKDetector *LKRun::FindDetector(const char *name) { return fDetectorSystem -> FindDetector(name); }
 LKDetectorPlane *LKRun::FindDetectorPlane(const char *name) { return fDetectorSystem -> FindDetectorPlane(name); }
 
-vector<TString> LKRun::SearchRunFiles(int searchRunNo, TString searchOption)
+vector<TString> LKRun::SearchRunFiles(int searchRunNo, TString searchOption, TString searchOption2)
 {
     //fInputPathArray.push_back("/home/cens-alpha-00/data/ganacq_manip/test/acquisition/run");
     //fInputPathArray.push_back("/root/lilak/stark/macros/data");
@@ -1606,8 +1679,15 @@ vector<TString> LKRun::SearchRunFiles(int searchRunNo, TString searchOption)
                 {
                     int runNo = TString(fileName(5,4)).Atoi();
                     int division = (fileName.Sizeof()>32) ? TString(fileName(32,fileName.Sizeof()-32-1)).Atoi() : 0;
+                    bool matched = false;
                     if (runNo==searchRunNo)
-                        matchingFiles.push_back(path+"/"+fileName);
+                        matched = true;
+                    if (!searchOption2.IsNull()) {
+                        if (searchOption2.IsDigit())
+                            searchOption2 = Form(".%s",searchOption2.Data());
+                        matched = fileName.EndsWith("s");
+                    }
+                    if (matched) matchingFiles.push_back(path+"/"+fileName);
                 }
             }
             ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1642,7 +1722,18 @@ vector<TString> LKRun::SearchRunFiles(int searchRunNo, TString searchOption)
         }
     }
 
-    sort(matchingFiles.begin(),matchingFiles.end());
+    if (searchOption=="mfm")
+    {
+        auto customComparator = [](const TString &a, const TString &b) {
+            if (a[a.Length()-1]=='s') return true;
+            if (b[b.Length()-1]=='s') return false;
+            TString fileNumberA = a(a.Last('.') + 1, a.Length());
+            TString fileNumberB = b(b.Last('.') + 1, b.Length());
+            return std::stoi(fileNumberA.Data()) < std::stoi(fileNumberB.Data());
+        };
+
+        sort(matchingFiles.begin(),matchingFiles.end(),customComparator);
+    }
 
     for (auto file : matchingFiles)
         lk_info << "Found " << file << endl;
