@@ -20,6 +20,10 @@ class LKMisc : public TObject
         static void DrawMarkers();
         static void DrawColors(vector<int> colors);
 
+        static TString FindOption(TString &option, TString name, bool removeAfter=false, int addValue=0);
+        static bool RemoveOption(TString &option, TString name);
+        static bool CheckOption(TString &option, TString name, bool removeAfter=false, int addValue=0);
+
     public:
         LKMisc();
         virtual ~LKMisc() {}
