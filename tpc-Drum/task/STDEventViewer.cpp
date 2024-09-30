@@ -17,7 +17,7 @@ bool STDEventViewer::Init()
     // hPoly -> GetZaxis() -> SetRangeUser(40, 3600);
 
     cEvent = new TCanvas();
-    hSumADC = new TH1D("hSumADC","",40, 0, 5000);
+    hSumADC = new TH1D("hSumADC","", 100, 0, 10000);
     hHitNum = new TH1I("hHitNum","",30, 0, 30);
     hGraph = new TGraph();
     hGraph -> SetMarkerStyle(20);
@@ -57,7 +57,7 @@ void STDEventViewer::Exec(Option_t *option)
             maxSection = fPadPlane -> GetSectionID(padID);
         }
     }
-    if(maxW > 3400 || maxW < 100){return;}
+    if(maxW > 3500 || maxW < 100){return;}
     if(hitNum < 3 || hitNum > 6){return;}
     if(maxSection != 2){return;}
 
@@ -84,12 +84,8 @@ void STDEventViewer::Exec(Option_t *option)
             sumADC += w;
             neighberHitNum++;
 
-            if(section != 2){
+            if(section != maxSection){
                 isCorrectSection = false;
-
-                if(row == 36){
-                    break;
-                }
             }
         }
     }
