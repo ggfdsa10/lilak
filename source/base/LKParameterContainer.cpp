@@ -12,6 +12,7 @@
 #include "TApplication.h"
 #include "TSystemDirectory.h"
 #include "TList.h"
+#include "TFile.h"
 
 #include "LKCompiled.h"
 #include "LKParameter.h"
@@ -1107,20 +1108,47 @@ LKParameterContainer* LKParameterContainer::CreateGroupContainer(TString nameGro
     return groupContainer;
 }
 
-LKParameterContainer* LKParameterContainer::CreateMultiParContainer(TString parNameGiven)
+LKParameterContainer* LKParameterContainer::CreateMultiParContainer(TString givenName)
 {
     R__COLLECTION_READ_LOCKGUARD(ROOT::gCoreMutex);
 
+    TString justName;
+    int index = 0;
+    while (index>=0) {
+        index = givenName.Index(" ");
+        if      (index<0)  { justName  = givenName; break; }
+        else if (index==0) { givenName = givenName(1,givenName.Sizeof()-2); continue; }
+        else               { justName  = givenName(0,index); break; }
+    }
+    while (1) {
+        if      (justName[0]=='<') { justName = justName(1,justName.Sizeof()-2); continue; }
+        else if (justName[0]=='*') { justName = justName(1,justName.Sizeof()-2); continue; }
+        else if (justName[0]=='@') { justName = justName(1,justName.Sizeof()-2); continue; }
+        else if (justName[0]=='&') { justName = justName(1,justName.Sizeof()-2); continue; }
+        else if (justName[0]=='!') { justName = justName(1,justName.Sizeof()-2); continue; }
+        else if (justName[0]=='#') { justName = justName(1,justName.Sizeof()-2); continue; }
+        else
+            break;
+    }
+
     auto multiParContainer = new LKParameterContainer();
-    multiParContainer -> SetName(parNameGiven);
+    multiParContainer -> SetName(givenName);
 
     TIter iterator(this);
-    LKParameter *parameter;
+    LKParameter *parameter = nullptr;
+    LKParameter *parameterFound = nullptr;
+    bool parameterIsFound = false;
     while ((parameter = dynamic_cast<LKParameter*>(iterator())))
     {
         if (parameter) {
             auto parName = parameter -> GetName();
-            if (parName==parNameGiven) {
+            if (parameter -> IsConditional()) {
+                auto mainName = parameter -> GetMainName();
+                if (mainName==justName) {
+                    multiParContainer -> Add(parameter);
+                }
+            }
+            else if (parName==justName) {
                 multiParContainer -> Add(parameter);
             }
         }
@@ -1338,4 +1366,42 @@ void LKParameterContainer::PrintCollection(TString fileName)
         fCollectedParameterContainer -> Print("!eval line# par# !idx");
     else
         fCollectedParameterContainer -> SaveAs(fileName);
+}
+
+
+LKCut* LKParameterContainer::GetParCut(TString name)
+{
+    TString name2 = name;
+    name2.ReplaceAll("/","_");
+    LKCut* cuts = new LKCut(name2);
+    auto cutList = CreateMultiParContainer(name);
+    auto numCuts = cutList -> GetEntries();
+    for (auto iCut=0; iCut<numCuts; ++iCut)
+    {
+        auto parameter = (LKParameter*) cutList -> At(iCut);
+        TString cutString = parameter -> GetString(0);
+        bool applyCut = true;
+        if (parameter->GetN()>1)
+            applyCut = parameter->GetBool(1);
+        if (cutString.EndsWith(".root")) {
+            auto file = new TFile(cutString,"read");
+            if (file->IsOpen()==false) {
+                lk_error << "Cannnot open " << cutString << endl;
+                return cuts;
+            }
+            auto cutg = (TCutG*) file -> Get("CUTG");
+            if (cutg==nullptr) {
+                lk_error << "CUTG is null in " << cutString << endl;
+                return cuts;
+            }
+            cutg -> SetName(Form("cutg_%d",iCut));
+            cutg -> SetTitle(cutString);
+            cuts -> Add(cutg,applyCut);
+        }
+        else {
+            TCut cut(Form("cut_%d",iCut),cutString);
+            cuts -> Add(cut,applyCut);
+        }
+    }
+    return cuts;
 }

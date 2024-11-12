@@ -26,7 +26,12 @@ class LKDataViewer : public TGMainFrame
         double fStatusFrameYRatio = 0.05;
         double fRF = 1; ///< Resize factor (scale factor of your screen compare to the mornitor which has with of 1500)
         double fRFEntry = 0.8; ///< Resize factor for number entry
+        double fResizeFactorX = 1.;
+        double fResizeFactorY = 1.;
+        int fWindowSizeX = 0;
+        int fWindowSizeY = 0;
         TString fSavePath = "data_viewer";
+        bool fMinimumUICompnenents = false;
 
         LKDrawingGroup *fCurrentGroup = nullptr;
         LKDrawing *fCurrentDrawing = nullptr;
@@ -43,6 +48,8 @@ class LKDataViewer : public TGMainFrame
 
         TGHorizontalFrame *fMainFrame = nullptr;
         TGVerticalFrame *fControlFrame = nullptr;
+        TGVerticalFrame *fBottomFrame = nullptr;
+        TGHorizontalFrame *fHiddenFrame = nullptr;
 
         TGNumberEntry *fEventNumberEntry = nullptr;
         TGNumberEntry *fEventRangeEntry1 = nullptr;
@@ -50,18 +57,19 @@ class LKDataViewer : public TGMainFrame
         TGNumberEntryField *fNumberInput; // Input field for the number pad
         //std::vector<TGTextButton *> fNumberButtons; // Buttons for the number pad
 
-        TGGroupFrame* fNavControlSection;
-        TGTextButton* fButton_H;
-        TGTextButton* fButton_L;
-        TGTextButton* fButton_J;
-        TGTextButton* fButton_K;
-        TGTextButton* fButton_T;
-        TGTextButton* fButton_U;
-        //TGTextButton* fButtonChangeHJKL;
+        TGGroupFrame* fNavControlSection = nullptr;
+        TGTextButton* fButton_H = nullptr;
+        TGTextButton* fButton_L = nullptr;
+        TGTextButton* fButton_J = nullptr;
+        TGTextButton* fButton_K = nullptr;
+        TGTextButton* fButton_T = nullptr;
+        TGTextButton* fButton_U = nullptr;
 
         int fCurrentCanvasX = 0;
         int fCurrentCanvasY = 0;
+        bool fPublicGroupIsAdded = false;
         LKDrawingGroup *fPublicGroup = nullptr;
+        int fCountPublicSub = 0;
         int fPublicTabIndex = 0;
 
         bool fUseTRootCanvas = false;
@@ -79,20 +87,23 @@ class LKDataViewer : public TGMainFrame
         int fCurrentSubTabID = 0;
         int fSaveTabID = 0;
         int fSaveSubTabID = 0;
+        bool fLayoutButIgnoreSelectedSignal = false;
 
         int fCountMessageUpdate = 0;
-        TGLabel* fStatusMessages = nullptr;
-        TGLabel* fStatusDataName = nullptr;
+        //TGLabel* fStatusMessages[3];
+        TGLabel* fStatusMessages[2];
+        //TGLabel* fStatusDataName = nullptr;
+        //TGTextView *fMessageHistoryView = nullptr;
 
         TString fTitle;
         TString fDrawOption;
-        vector<TString> fDrawGroupNameArray;
 
         LKRun *fRun = nullptr;
 
     public:
         LKDataViewer(const TGWindow *p=nullptr, UInt_t w=1500, UInt_t h=800);
         LKDataViewer(LKDrawingGroup *top, const TGWindow *p=nullptr, UInt_t w=1500, UInt_t h=800);
+        LKDataViewer(LKDrawing *drawing, const TGWindow *p=nullptr, UInt_t w=1500, UInt_t h=800);
         LKDataViewer(TString fileName, TString groupSelection="", const TGWindow *p=nullptr, UInt_t w=1500, UInt_t h=800);
         LKDataViewer(TFile* file, TString groupSelection="", const TGWindow *p=nullptr, UInt_t w=1500, UInt_t h=800);
         virtual ~LKDataViewer();
@@ -106,7 +117,10 @@ class LKDataViewer : public TGMainFrame
 
         LKDrawingGroup* GetTopDrawingGroup() const { return fTopDrawingGroup; }
 
+        /// resize
+        /// saveall
         void Draw(TString option="");
+        virtual void SetName(const char* name);
 
     protected:
         bool InitParameters();
@@ -126,7 +140,8 @@ class LKDataViewer : public TGMainFrame
         void CreateTabControlSection(); ///< CreateControlFrame
         void CreateNumberPad(); ///< CreateControlFrame
 
-        void SendOutMessage(TString message);
+        /// messageType 0:default 1:info 2:warning
+        void SendOutMessage(TString message, int messageType=0, bool printScreen=false);
 
     public:
         void ProcessPrevEvent();
@@ -135,8 +150,12 @@ class LKDataViewer : public TGMainFrame
         void ProcessAllEvents();
         void ProcessRangeEvents();
         void ProcessExitViewer();
-        void ProecessSaveTab(int ipad);
-        void ProcessGotoTopTab(int iTab=-1, int iSub=-1, bool layout=true);
+        void ProcessSaveTab(int ipad);
+        void ProcessGotoTopTab(int iTab=-1, int iSub=-1, bool layout=true, int signal=0);
+        void ProcessLayoutTopTab(int iTab=-1, int iSub=-1);
+        void ProcessLayoutSubTab(int iSub=-1);
+        //void ProcessGotoTopTabClicked();
+        //void ProcessGotoTopTabSelected(Int_t id);
         void ProcessGotoSubTab(int iSub=-1, bool layout=true);
         void ProcessPrevTab();
         void ProcessNextTab();
@@ -148,12 +167,13 @@ class LKDataViewer : public TGMainFrame
         void ProcessReLoadCCanvas();
         void ProcessReLoadACanvas();
         void ProcessTCutEditorMode(int iMode=-1);
-        void ProcessTCutGMode(int iMode);
+        void ProcessWaitPrimitive(int iMode);
         void ProcessCanvasControl(int iMode);
         void ProcessNavigationMode(int iMode);
         void ProcessNavigateCanvas(int iMode);
         void ProcessToggleNavigateCanvas();
         void ProcessUndoToggleCanvas();
+        void ProcessSizeViewer(double scale=1, double scaley=1);
 
         void HandleNumberInput(Int_t id);
 

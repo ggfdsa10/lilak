@@ -459,6 +459,33 @@ TString LKMisc::FindOption(TString &option, TString name, bool removeAfter, int 
     return value;
 }
 
+int LKMisc::FindOptionInt(TString &option, TString name, int emptyValue)
+{
+    TString value = LKMisc::FindOption(option, name, false, false);
+    if (value.IsNull())
+        return emptyValue;
+    else
+        return value.Atoi();
+}
+
+double LKMisc::FindOptionDouble(TString &option, TString name, double emptyValue)
+{
+    TString value = LKMisc::FindOption(option, name, false, false);
+    if (value.IsNull())
+        return emptyValue;
+    else
+        return value.Atof();
+}
+
+TString LKMisc::FindOptionString(TString &option, TString name, TString emptyValue)
+{
+    TString value = LKMisc::FindOption(option, name, false, false);
+    if (value.IsNull())
+        return emptyValue;
+    else
+        return value;
+}
+
 bool LKMisc::CheckOption(TString &option, TString name, bool removeAfter, int addValue)
 {
     auto value = LKMisc::FindOption(option, name, removeAfter, addValue);
@@ -472,3 +499,33 @@ bool LKMisc::RemoveOption(TString &option, TString name)
     auto value = LKMisc::FindOption(option, name, true);
     return (value.IsNull()==false);
 }
+
+void LKMisc::AddOption(TString &original, TString adding)
+{
+    if (LKMisc::CheckOption(original,adding)==false)
+        original = original + ":" + adding;
+}
+
+void LKMisc::AddOption(TString &original, TString adding, TString value)
+{
+    LKMisc::RemoveOption(original,adding);
+    TString option = Form("%s=%s",adding.Data(),value.Data());
+    original = original + ":" + option;
+}
+
+void LKMisc::AddOption(TString &original, TString adding, double value)
+{
+    LKMisc::RemoveOption(original,adding);
+    TString option = Form("%s=%f",adding.Data(),value);
+    while (option[option.Sizeof()-2]=='0')
+        option = option(0,option.Sizeof()-2);
+    original = original + ":" + option;
+}
+
+void LKMisc::AddOption(TString &original, TString adding, int value)
+{
+    LKMisc::RemoveOption(original,adding);
+    TString option = Form("%s=%d",adding.Data(),value);
+    original = original + ":" + option;
+}
+
