@@ -376,7 +376,7 @@ Int_t LKParameterContainer::AddFile(TString parName, TString fileName)
     return countParameters;
 }
 
-Int_t LKParameterContainer::AddParameterContainer(LKParameterContainer *parc)
+Int_t LKParameterContainer::AddParameterContainer(LKParameterContainer *parc, bool addEvalOnly)
 {
     lk_info << "Adding parameter container " << parc -> GetName() << endl;
 
@@ -402,7 +402,8 @@ Int_t LKParameterContainer::AddParameterContainer(LKParameterContainer *parc)
             continue;
         }
         else {
-            SetPar(parameter->GetName(),parameter->GetRaw(),parameter->GetValue(),parameter->GetComment(),parameter->GetType());
+            if (addEvalOnly) SetPar(parameter->GetName(),parameter->GetValue(),parameter->GetValue(),parameter->GetComment(),parameter->GetType());
+            else             SetPar(parameter->GetName(),parameter->GetRaw(),  parameter->GetValue(),parameter->GetComment(),parameter->GetType());
             ++countParameters;
         }
     }
@@ -588,30 +589,20 @@ void LKParameterContainer::Print(Option_t *option) const
         return;
     }
 
-    bool evaluatePar = false;
-    bool showLineComment = true;
-    bool showParComments = true;
     bool showLineIndex = true;
+    bool showLineComment = true;
     bool printToScreen = true;
     bool printToFile = false;
     ofstream fileOut;
 
     if (printOptions.Index("all")>=0) {
-        evaluatePar = true;
+        showLineIndex = true;
         showLineComment = true;
-        showParComments = true;
         printToScreen = true;
     }
     else {
-        if (printOptions.Index("!eval")>=0) { evaluatePar = false; printOptions.ReplaceAll("!eval", ""); }
-        if (printOptions.Index( "eval")>=0) { evaluatePar = true;  printOptions.ReplaceAll("eval", ""); }
-
         if (printOptions.Index("!line#")>=0) { showLineComment = false; printOptions.ReplaceAll("!line#", ""); }
-        if (printOptions.Index( "line#")>=0) { showLineComment = true;  printOptions.ReplaceAll("line#", ""); }
-
-        if (printOptions.Index("!par#")>=0) { showParComments = false; printOptions.ReplaceAll("!par#", ""); }
-        if (printOptions.Index( "par#")>=0) { showParComments = true;  printOptions.ReplaceAll("par#", ""); }
-
+        if (printOptions.Index( "line#")>=0) { showLineComment = true;  printOptions.ReplaceAll(" line#", ""); }
         if (printOptions.Index("!idx")>=0) { showLineIndex = false; printOptions.ReplaceAll("!idx", ""); }
         if (printOptions.Index( "idx")>=0) { showLineIndex = true;  printOptions.ReplaceAll("idx", ""); }
     }
@@ -643,19 +634,9 @@ void LKParameterContainer::Print(Option_t *option) const
     TString preGroup = "";
     while ((parameter = dynamic_cast<LKParameter*>(iterator())))
     {
-        TString parName = parameter -> GetName();
         TString parGroup = parameter -> GetGroup();
-        TString parRaw = parameter -> GetRaw();
-        TString parValue = parameter -> GetValue();
-        TString parComment = parameter -> GetComment();
-
-        if (!evaluatePar)
-            parValue = parRaw;
 
         bool addEmptyLine = false;
-        //if (preGroup!="" && preGroup!=parGroup)
-            //addEmptyLine = true;
-
         bool isLineComment = false;
         bool isParameter = true;
         if (parameter -> IsLineComment()) {
@@ -667,33 +648,6 @@ void LKParameterContainer::Print(Option_t *option) const
             isParameter = true;
         }
 
-        if (isParameter) {
-            if (!showParComments)
-                parComment = "";
-            else if (!parComment.IsNull())
-                parComment = TString(" # ") + parComment;
-        }
-
-        parName = parameter -> GetTypeHeader() + parName;
-
-        int nwidth = 20;
-             if (parName.Sizeof()>60) nwidth = 70;
-        else if (parName.Sizeof()>50) nwidth = 60;
-        else if (parName.Sizeof()>40) nwidth = 50;
-        else if (parName.Sizeof()>30) nwidth = 40;
-        //else if (parName.Sizeof()>20) nwidth = 30;
-        else                          nwidth = 30;
-
-        int vwidth = 5;
-             if (parValue.Sizeof()>60) vwidth = 70;
-        else if (parValue.Sizeof()>50) vwidth = 60;
-        else if (parValue.Sizeof()>40) vwidth = 50;
-        else if (parValue.Sizeof()>30) vwidth = 40;
-        else if (parValue.Sizeof()>20) vwidth = 30;
-        else if (parValue.Sizeof()>10) vwidth = 20;
-        else if (parValue.Sizeof()>5)  vwidth = 10;
-        else                           vwidth = 5;
-
         if (addEmptyLine) {
             if (printToScreen) e_cout << endl;
             if (printToFile)   fileOut << endl;
@@ -701,21 +655,19 @@ void LKParameterContainer::Print(Option_t *option) const
         if (preGroup!=parGroup && printToFile)
             fileOut << endl;
 
-        if (isLineComment && showLineComment) {
+        if (isLineComment && showLineComment)
+        {
             if (showLineComment) {
-                if (printToScreen) e_cout << "# " << parComment << endl;
-                //if (printToFile)   fileOut << "# " << parComment << endl;
+                if (printToScreen) e_cout  << parameter->GetLine(TString(option)) << endl;
                 if (printToFile)   fileOut << parameter->GetLine(TString(option)) << endl;
             }
         }
-        else if (isParameter) {
+        else if (isParameter)
+        {
             if (printToScreen) {
-                //if (showLineIndex) e_list(parNumber) << left << setw(nwidth) << parName << " " << setw(vwidth) << parValue << " " << parComment << endl;
                 if (showLineIndex) e_list(parNumber) << left << parameter->GetLine(TString(option)) << endl;
                 else               e_cout            << left << parameter->GetLine(TString(option)) << endl;
-                //else               e_cout << left << setw(nwidth) << parName << " " << setw(vwidth) << parValue << " " << parComment << endl;
             }
-            //if (printToFile) fileOut << left << setw(nwidth) << parName << " " << setw(vwidth) << parValue << " " << parComment << endl;
             if (printToFile) fileOut << parameter->GetLine(TString(option)) << endl;
         }
 
@@ -727,8 +679,6 @@ void LKParameterContainer::Print(Option_t *option) const
     if (printToScreen)
         lk_info << "End of Parameter Container " << fName << endl;
         e_cout << endl;
-
-    //if (printToFile) fileOut << endl;
 }
 
 LKParameterContainer *LKParameterContainer::CloneParameterContainer(TString name, bool addTemporary) const
@@ -746,7 +696,7 @@ LKParameterContainer *LKParameterContainer::CloneParameterContainer(TString name
         }
         else if (parameter->IsLineComment()) {
             auto comment = parameter->GetComment();
-            new_collection -> SetLineComment(Form("> %s",parameter->GetComment().Data()));
+            new_collection -> SetLineComment(Form(">%s",parameter->GetComment().Data()));
         }
         else
             new_collection -> Add(parameter);
@@ -1064,14 +1014,24 @@ LKParameter *LKParameterContainer::SetParCont(TString name) {
     return SetLineComment(Form("input container %s", name.Data()));
 }
 
-void LKParameterContainer::UpdateBinning(TString name, Int_t &n, Double_t &x1, Double_t &x2) const
+bool LKParameterContainer::UpdateBinning(TString name, Int_t &n, Double_t &x1, Double_t &x2) const
 {
     if (CheckPar(name) && GetParN(name)>=3)
     {
         n = GetParInt(name,0);
         x1 = GetParDouble(name,1);
         x2 = GetParDouble(name,2);
+        return true;
     }
+    return false;
+}
+
+void LKParameterContainer::UpdateBinning(TString name, LKBinning &binning) const
+{
+    int n;
+    double x1, x2;
+    if (UpdateBinning(name, n, x1, x2))
+        binning.SetXNMM(n, x1, x2);
 }
 
 void LKParameterContainer::UpdateV3(TString name, Double_t &x, Double_t &y, Double_t &z) const
@@ -1155,6 +1115,31 @@ LKParameterContainer* LKParameterContainer::CreateMultiParContainer(TString give
     }
 
     return multiParContainer;
+}
+
+LKParameterContainer* LKParameterContainer::CreateAnyContainer(TString any)
+{
+    R__COLLECTION_READ_LOCKGUARD(ROOT::gCoreMutex);
+
+    auto anyContainer = new LKParameterContainer();
+    anyContainer -> SetName(any);
+
+    TIter iterator(this);
+    LKParameter *parameter;
+    while ((parameter = dynamic_cast<LKParameter*>(iterator())))
+    {
+        if (parameter)
+            if (TString(parameter->GetName()).Index(any)>=0) {
+                TString mainName = parameter -> GetMainName();
+                mainName.ReplaceAll(any+"/","");
+                mainName.ReplaceAll(any,"");
+                if (mainName.IsNull()) mainName = Form("c%d",anyContainer->GetEntries());
+                TString value = parameter -> GetValue();
+                anyContainer -> AddPar(mainName,value);
+            }
+    }
+
+    return anyContainer;
 }
 
 void LKParameterContainer::Require(TString name, TString value, TString comment, TString type, int compare)
@@ -1368,40 +1353,71 @@ void LKParameterContainer::PrintCollection(TString fileName)
         fCollectedParameterContainer -> SaveAs(fileName);
 }
 
-
 LKCut* LKParameterContainer::GetParCut(TString name)
 {
     TString name2 = name;
     name2.ReplaceAll("/","_");
     LKCut* cuts = new LKCut(name2);
-    auto cutList = CreateMultiParContainer(name);
+    auto cutList = CreateAnyContainer(name);
     auto numCuts = cutList -> GetEntries();
-    for (auto iCut=0; iCut<numCuts; ++iCut)
-    {
-        auto parameter = (LKParameter*) cutList -> At(iCut);
-        TString cutString = parameter -> GetString(0);
-        bool applyCut = true;
-        if (parameter->GetN()>1)
-            applyCut = parameter->GetBool(1);
-        if (cutString.EndsWith(".root")) {
-            auto file = new TFile(cutString,"read");
-            if (file->IsOpen()==false) {
-                lk_error << "Cannnot open " << cutString << endl;
-                return cuts;
-            }
-            auto cutg = (TCutG*) file -> Get("CUTG");
-            if (cutg==nullptr) {
-                lk_error << "CUTG is null in " << cutString << endl;
-                return cuts;
-            }
-            cutg -> SetName(Form("cutg_%d",iCut));
-            cutg -> SetTitle(cutString);
-            cuts -> Add(cutg,applyCut);
-        }
-        else {
-            TCut cut(Form("cut_%d",iCut),cutString);
-            cuts -> Add(cut,applyCut);
-        }
-    }
+    cuts -> AddPar(cutList);
     return cuts;
+}
+
+LKBinning LKParameterContainer::GetBinning(TString name)
+{
+    if (CheckPar(name))
+    {
+        TString nm, tl;
+        int nx=1, ny=1;
+        double x1=0, x2=0, y1=0, y2=0;
+        if (GetParN(name)==3) {
+            nx = GetParInt   (name,0);
+            x1 = GetParDouble(name,1);
+            x2 = GetParDouble(name,2);
+        }
+        else if (GetParN(name)==4) {
+            nm = GetParString(name,0);
+            nx = GetParInt   (name,1);
+            x1 = GetParDouble(name,2);
+            x2 = GetParDouble(name,3);
+        }
+        else if (GetParN(name)==5) {
+            nm = GetParString(name,0);
+            tl = GetParString(name,1);
+            nx = GetParInt   (name,2);
+            x1 = GetParDouble(name,3);
+            x2 = GetParDouble(name,4);
+        }
+        else if (GetParN(name)==6) {
+            nx = GetParInt   (name,0);
+            x1 = GetParDouble(name,1);
+            x2 = GetParDouble(name,2);
+            ny = GetParInt   (name,3);
+            y1 = GetParDouble(name,4);
+            y2 = GetParDouble(name,5);
+        }
+        else if (GetParN(name)==7) {
+            nm = GetParString(name,0);
+            nx = GetParInt   (name,1);
+            x1 = GetParDouble(name,2);
+            x2 = GetParDouble(name,3);
+            ny = GetParInt   (name,4);
+            y1 = GetParDouble(name,5);
+            y2 = GetParDouble(name,6);
+        }
+        else if (GetParN(name)==8) {
+            nm = GetParString(name,0);
+            tl = GetParString(name,1);
+            nx = GetParInt   (name,2);
+            x1 = GetParDouble(name,3);
+            x2 = GetParDouble(name,4);
+            ny = GetParInt   (name,5);
+            y1 = GetParDouble(name,6);
+            y2 = GetParDouble(name,7);
+        }
+        LKBinning binn(nm,tl,nx,x1,x2,ny,y1,y2);
+        return binn;
+    }
+    return LKBinning();
 }

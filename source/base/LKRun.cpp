@@ -18,6 +18,7 @@
 #include "LKRun.h"
 #include "LKClassFactory.h"
 #include "LKDataViewer.h"
+#include "LKMisc.h"
 
 ClassImp(LKRun)
 
@@ -289,21 +290,22 @@ void LKRun::Print(Option_t *option) const
             lk_info << "Input tree do not exist" << endl;
         }
         else {
-            lk_info << "Input: " << fInputFileName << endl;
-            lk_info << "  Entries " << fInputTree -> GetEntries() << endl;
-            lk_info << "  * Main " << endl;
+            lk_info << "Input:" << endl;
+            e_cout << "   " << fInputFileName << endl;
+            e_cout << "      Entries " << fInputTree -> GetEntries() << endl;
+            e_cout << "      * Main " << endl;
             auto branchList = fInputTree -> GetListOfBranches();
             auto numBranches = branchList -> GetEntries();
             for (auto ib=0; ib<numBranches; ++ib)
-                lk_info << "    Branch " << ((TBranch *) branchList -> At(ib)) -> GetName() << endl;
+                e_cout << "        Branch " << ((TBranch *) branchList -> At(ib)) -> GetName() << endl;
 
             for (Int_t iFriend = 0; iFriend < fNumFriends; iFriend++) {
-                lk_info << "  * Friend(" << iFriend << ")" <<endl;
+                e_cout << "      * Friend(" << iFriend << ")" <<endl;
                 auto friendTree = (TChain*) fFriendTrees -> At(iFriend);
                 branchList = friendTree -> GetListOfBranches();
                 numBranches = branchList -> GetEntries();
                 for (auto ib=0; ib<numBranches; ++ib)
-                    lk_info << "    Branch " << ((TBranch *) branchList -> At(ib)) -> GetName() << endl;
+                    e_cout << "        Branch " << ((TBranch *) branchList -> At(ib)) -> GetName() << endl;
             }
         }
     }
@@ -315,12 +317,13 @@ void LKRun::Print(Option_t *option) const
             lk_info << "Output tree do not exist" << endl;
         }
         else {
-            lk_info << "Output: " << fOutputFileName << endl;
-            lk_info << "  Entries " << fOutputTree -> GetEntries() << endl;
+            lk_info << "Output: " << endl;
+            e_cout << "   " << fOutputFileName << endl;
+            e_cout << "      Entries " << fOutputTree -> GetEntries() << endl;
             auto branchList = fOutputTree -> GetListOfBranches();
             auto numBranches = branchList -> GetEntries();
             for (auto ib=0; ib<numBranches; ++ib)
-                lk_info << "  Branch " << ((TBranch *) branchList -> At(ib)) -> GetName() << endl;
+                e_cout << "      Branch " << ((TBranch *) branchList -> At(ib)) -> GetName() << endl;
         }
     }
 
@@ -809,20 +812,23 @@ bool LKRun::Init()
             TString branchName = branch -> GetName();
             if (branchName.Index("EdepSum")==0) // TODO
                 continue;
+            fBranchNames.push_back(branchName);
             fInputTree -> SetBranchStatus(branchName, 1);
             fInputTree -> SetBranchAddress(branchName, &fBranchPtr[fCountBranches]);
-            // Reason for calling GetEntry is to setting the class to the TClonesArray.
-            // Without doing this, TClonesArray do not hold the class and KeepBranchA() method will not work.
-            fInputTree -> GetEntry(0);
             fBranchPtrMap[branchName] = fBranchPtr[fCountBranches];
-            fInputTreeBranchArray -> Add(fBranchPtr[fCountBranches]);
-            fBranchNames.push_back(branchName);
             fCountBranches++;
+        }
+        // Reason for calling GetEntry is to setting the class to the TClonesArray.
+        // Without doing this, TClonesArray do not hold the class and KeepBranchA() method will not work.
+        fInputTree -> GetEntry(0);
+        for (Int_t iBranch = 0; iBranch < fCountBranches; iBranch++) {
+            TString branchName = fBranchNames.at(iBranch);
+            fInputTreeBranchArray -> Add(fBranchPtr[iBranch]);
             if (branchName.Index("MCStep")==0) {
                 arrMCStepIDs.push_back(branchName.ReplaceAll("MCStep","").Data());
                 ++numMCStepIDs;
             } else {
-                TString clonesClassName = fBranchPtr[fCountBranches-1] -> GetClass() -> GetName();
+                TString clonesClassName = fBranchPtr[iBranch] -> GetClass() -> GetName();
                 lk_info << "Input branch " << branchName << " (" << clonesClassName << ") found" << endl;
             }
         }
@@ -858,7 +864,7 @@ bool LKRun::Init()
 
         if (fInputFile -> Get("ParameterContainer") != nullptr) {
             auto par = (LKParameterContainer *) fInputFile -> Get("ParameterContainer");
-            AddParameterContainer(par->CloneParameterContainer());
+            AddParameterContainer(par->CloneParameterContainer(),true);
 
             if (fRunName.IsNull() ) fPar -> UpdatePar(fRunName,  "LKRun/Name");
             if (fRunID<0) fPar -> UpdatePar(fRunID,    "LKRun/RunID");
@@ -1633,6 +1639,11 @@ bool LKRun::EndOfRun()
 
     ProcessWriteExitLog();
 
+    if (fDrawAfterRun) {
+        SetAutoTermination(false);
+        Draw(fDrawOption);
+    }
+
     if (fAutoTerminate) Terminate(this, "good!");
 
     return true;
@@ -1848,20 +1859,24 @@ void LKRun::PrintDrawings()
 
 LKDrawingGroup* LKRun::GetTopDrawingGroup()
 {
-    if (fDataViewer==nullptr) {
-        //fDataViewer = new LKDataViewer("run");
-        fDataViewer = new LKDataViewer();
-        fDataViewer -> SetName(MakeFullRunName(true));
-        fDataViewer -> SetRun(this);
-        fTopDrawingGroup = fDataViewer -> GetTopDrawingGroup();
-    }
+    if (fTopDrawingGroup==nullptr)
+        fTopDrawingGroup = new LKDrawingGroup(MakeFullRunName(true));
+
     return fTopDrawingGroup;
 }
 
 void LKRun::Draw(Option_t* option)
 {
-    if (fTopDrawingGroup==nullptr)
-        lk_warning << "No drawings added!" << endl;
-    else
-        fDataViewer -> Draw(TString(option));
+    fDrawOption = option;
+    if (fTopDrawingGroup->GetEntries()==0) {
+        lk_warning << "Not using drawings..." << endl;
+        return;
+    }
+    if (fDataViewer!=nullptr && fDataViewer->IsActive()) {
+        lk_warning << "Viewer already running" << endl;
+        return;
+    }
+    fDataViewer = fTopDrawingGroup -> CreateViewer();
+    fDataViewer -> SetRun(this);
+    fTopDrawingGroup -> Draw(TString(fDrawOption));
 }

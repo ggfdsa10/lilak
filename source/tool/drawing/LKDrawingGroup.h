@@ -30,13 +30,15 @@ class LKDrawingGroup : public TObjArray
         int fDYCvs = 0;
         TObjArray* fPadArray = nullptr;
 
-        LKDataViewer *fViewer = nullptr; //!
+        LKDataViewer* fViewer = nullptr; //!
         LKParameterContainer *fPar = nullptr; //!
 
     private:
         bool ConfigureCanvas();
         bool CheckIsGroupGroup(bool add=false);
         bool CheckIsDrawingGroup(bool add=false);
+
+        void DividePad(TPad* cvs, Int_t nx, Int_t ny, Float_t xmargin=0.001, Float_t ymargin=0.001, Int_t color=0);
 
     public:
         LKDrawingGroup(TString name="", int groupLevel=0);
@@ -56,7 +58,9 @@ class LKDrawingGroup : public TObjArray
         virtual void Draw(Option_t *option="all");
         virtual void Print(Option_t *option="") const;
         virtual Int_t Write(const char *name = nullptr, Int_t option=TObject::kSingleKey, Int_t bufsize = 0) const;
-        void WriteFile(TString fileName="");
+        void WriteFile(TString fileName="", TString option="");
+
+        LKDataViewer* CreateViewer();
 
         void Save(bool recursive=true, bool saveRoot=true, bool saveImage=true, TString dirName="", TString header="", TString tag="");
 
@@ -82,10 +86,14 @@ class LKDrawingGroup : public TObjArray
         void SetCanvasSize(int dx, int dy) { fFixCvsSize = true; fDXCvs = dx; fDYCvs = dy; }
         void SetCanvasSizeRatio(int dx, int dy) { fDXCvs = dx; fDYCvs = dy; }
         void AddPad(TPad *pad) { if (fPadArray==nullptr) fPadArray = new TObjArray(); fPadArray -> Add(pad); }
+        void SetPadVerticalNumbering(bool v=true) { AddOption("vertical_pad_numbering"); }
 
         // find
         LKDrawing* FindDrawing(TString name);
         TH1*       FindHist(TString name);
+        TGraph*    FindGraph(TString name);
+        TF1*       FindFunction(TString name);
+        TObject*   FindClassObject(TString name, TClass *tclass);
 
         // file
         TString GetFileName() { return fFileName; }

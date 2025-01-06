@@ -30,8 +30,10 @@ class LKDataViewer : public TGMainFrame
         double fResizeFactorY = 1.;
         int fWindowSizeX = 0;
         int fWindowSizeY = 0;
-        TString fSavePath = "data_viewer";
-        bool fMinimumUICompnenents = false;
+        TString fSavePath = "data_lilak";
+        bool fMinimumUIComponents = false;
+        bool fIsActive = false;
+        int fCanvasFillColor = 0;
 
         LKDrawingGroup *fCurrentGroup = nullptr;
         LKDrawing *fCurrentDrawing = nullptr;
@@ -48,8 +50,8 @@ class LKDataViewer : public TGMainFrame
 
         TGHorizontalFrame *fMainFrame = nullptr;
         TGVerticalFrame *fControlFrame = nullptr;
-        TGVerticalFrame *fBottomFrame = nullptr;
-        TGHorizontalFrame *fHiddenFrame = nullptr;
+        TGVerticalFrame *fStatusFrame = nullptr;
+        TGHorizontalFrame *fBottomFrame = nullptr;
 
         TGNumberEntry *fEventNumberEntry = nullptr;
         TGNumberEntry *fEventRangeEntry1 = nullptr;
@@ -120,11 +122,25 @@ class LKDataViewer : public TGMainFrame
         /// resize
         /// saveall
         void Draw(TString option="");
+        virtual void Print(Option_t *option="") const;
         virtual void SetName(const char* name);
+
+        bool IsActive() const { return fIsActive; }
 
     protected:
         bool InitParameters();
         bool InitFrames();
+
+        TGLayoutHints* NewHintsMainFrame();
+        TGLayoutHints* NewHintsFrame();
+        TGLayoutHints* NewHintsInnerFrame();
+        TGLayoutHints* NewHintsTopFrame();
+        TGLayoutHints* NewHintsInnerButton();
+        TGLayoutHints* NewHintsMinimumUI();
+        TGLayoutHints* NewHints(int option);
+
+        TGGroupFrame* NewGroupFrame(TString sectionName);
+        TGHorizontalFrame* NewHorizontalFrame(TGGroupFrame* section);
 
         int AddGroupTab(LKDrawingGroup* group, int iTab=-1, int iSub=-1); ///< CreateMainCanvas
 

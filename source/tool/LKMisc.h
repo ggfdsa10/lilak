@@ -19,6 +19,8 @@ class LKMisc : public TObject
         static void DrawColors();
         static void DrawMarkers();
         static void DrawColors(vector<int> colors);
+        static void DrawColors(vector<TString> colors);
+        static void DrawFonts();
 
         static int     FindOptionInt   (TString &option, TString name, int emptyValue);
         static double  FindOptionDouble(TString &option, TString name, double emptyValue);
@@ -31,6 +33,10 @@ class LKMisc : public TObject
         static void AddOption(TString &original, TString adding, TString value);
         static void AddOption(TString &original, TString adding, double value);
         static void AddOption(TString &original, TString adding, int value);
+
+        static bool ValueIsInArray(TString value, vector<TString> array);
+        static bool ValueIsInArray(double value, vector<double> array);
+        static bool ValueIsInArray(int value, vector<int> array);
 
     public:
         LKMisc();
