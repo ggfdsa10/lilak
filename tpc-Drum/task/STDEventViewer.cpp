@@ -17,7 +17,13 @@ bool STDEventViewer::Init()
     // hPoly -> GetZaxis() -> SetRangeUser(40, 3600);
 
     cEvent = new TCanvas();
-    hSumADC = new TH1D("hSumADC","", 100, 0, 10000);
+    for(int i=0; i<4; i++){
+        hSumADC[i] = new TH1D(Form("hSumADC%i", i),"", 1000, 0, 10000);
+    }
+    hSumADC[1] -> SetLineColor(kRed);
+    hSumADC[2] -> SetLineColor(kGreen+2);
+    hSumADC[3] -> SetLineColor(kYellow+2);
+
     hHitNum = new TH1I("hHitNum","",30, 0, 30);
     hGraph = new TGraph();
     hGraph -> SetMarkerStyle(20);
@@ -34,12 +40,15 @@ void STDEventViewer::Exec(Option_t *option)
     
     double maxW = 0.;
     int maxSection = -1;
-    double maxX = 0.;
-    double maxY = 0.;
+    int maxLayer = 0.;
+    int maxRow = 0.;
     int maxHitIdx = -1;
     int hitNum = fHitArray -> GetEntries();
+    // if(hitNum < 3 || hitNum > 6){return;}
+
+    
     for(int hit=0; hit<hitNum; hit++){
-        fHit = (LKHit*)fHitArray -> At(hit);
+        fHit = (LKHit*)fHitArray -> UncheckedAt(hit);
         int padID = fHit -> GetPadID();
         int layer = fHit -> GetLayer();
         int row = fHit -> GetRow();
@@ -52,47 +61,88 @@ void STDEventViewer::Exec(Option_t *option)
         if(maxW < w){
             maxW = w;
             maxHitIdx = hit;
-            maxX = x;
-            maxY = y;
+            maxLayer = layer;
+            maxRow = row;
             maxSection = fPadPlane -> GetSectionID(padID);
         }
     }
-    if(maxW > 3500 || maxW < 100){return;}
-    if(hitNum < 3 || hitNum > 6){return;}
-    if(maxSection != 2){return;}
+    if(maxW > 3500 || maxW < 50){return;}
 
-    double sumADC = 0.;
+    double hitWMatrix[3][5];
+    memset(&hitWMatrix, 0., sizeof(hitWMatrix));
+    hitWMatrix[1][2] = maxW;
 
-    fHit = (LKHit*)fHitArray -> At(maxHitIdx);
-    int maxLayer = fHit -> GetLayer();
-    int maxRow = fHit -> GetRow();
-    int neighberHitNum = 0;
-    sumADC += maxW;
+    int MaxRowIdxByLayer[3];
+    double tmpMaxWByLayer[3];
+    fill_n(&MaxRowIdxByLayer[0], 3, -1);
+    memset(&tmpMaxWByLayer, 0., sizeof(tmpMaxWByLayer));
 
-    bool isCorrectSection = true;
+    int neighberHitNum = -1; // except the max hit
     for(int hit=0; hit<hitNum; hit++){
-        if(hit == maxHitIdx){continue;}
-        fHit = (LKHit*)fHitArray -> At(hit);
-        int padID = fHit -> GetPadID();
+        fHit = (LKHit*)fHitArray -> UncheckedAt(hit);
         int layer = fHit -> GetLayer();
         int row = fHit -> GetRow();
-        int section = fPadPlane -> GetSectionID(padID);
+        int maxCenteredLayer = 1 + (layer - maxLayer);
+        int maxCenteredRow = 2 + (row - maxRow);
 
-        if(abs(layer - maxLayer) <= 0 && abs(row - maxRow) < 3){
+        if(abs(maxCenteredLayer) <= 2 && abs(maxCenteredRow) < 5){
             double w = fHit -> W();
-            if(w < 100){continue;}
-            sumADC += w;
+            hitWMatrix[maxCenteredLayer][maxCenteredRow] = w;
             neighberHitNum++;
 
-            if(section != maxSection){
-                isCorrectSection = false;
+            for(int layer=0; layer<3; layer++){
+                if(maxCenteredLayer == layer && tmpMaxWByLayer[layer] < w){
+                    tmpMaxWByLayer[layer] = w;
+                    MaxRowIdxByLayer[layer] = maxCenteredRow;
+                }
             }
         }
     }
 
-    if(!isCorrectSection){return;}
+    cout << " ================================ " << endl;
+    for(int l=2; l>=0; l--){
+        for(int r=0; r<5; r++){
+            int w = hitWMatrix[l][r];
+            TString wstring = Form("%i", w);
+            int wStringSize = wstring.Sizeof();
+            wstring = "";
+            for(int i=0; i<5-wStringSize; i++){
+                wstring += " ";
+            }
+            cout << w << Form("%s, ", wstring.Data());
+        }
+        cout << endl;
+    }
+    cout << " ================================ " << endl;
+
+    double sumADC = 0.;
+    for(int layer=0; layer<3; layer++){
+        int maxRowIdx = MaxRowIdxByLayer[layer];
+        if(maxRowIdx < 0 || abs(maxRowIdx - MaxRowIdxByLayer[1]) > 1){continue;}
+
+        cout << " layer: " << layer << " row: " << maxRowIdx << "| sumADC += " << hitWMatrix[layer][maxRowIdx] << endl;
+        sumADC += hitWMatrix[layer][maxRowIdx];
+
+        for(int step=0; step<2; step++){
+            for(int side=0; side<2; side++){
+                int stepSign = (side==0)? -1 : +1;
+                int currIdx = maxRowIdx + stepSign*step;
+                int prevIdx = currIdx + stepSign;
+
+                double currStepW = hitWMatrix[layer][currIdx];
+                double prevStepW = hitWMatrix[layer][prevIdx];
+
+                if(currStepW > prevStepW){
+                    if(prevStepW < 50){continue;}
+                    sumADC += prevStepW;
+                    // cout << " layer " << layer << " step " << step << " side " << side << " | " << " maxRowByLayer: " << maxRowIdx  << " idx: "  << currIdx << " " << prevIdx << endl;
+                    cout << " OK ! " <<  currStepW << " > " << prevStepW  << endl;
+                }
+            }
+        }
+    }
     
-    hPoly -> Fill(maxX, maxY);
+    // hPoly -> Fill(maxX, maxY);
     // for(int hit=0; hit<hitNum; hit++){
     //     fHit = (LKHit*)fHitArray -> At(hit);
     //     int padID = fHit -> GetPadID();
@@ -103,7 +153,8 @@ void STDEventViewer::Exec(Option_t *option)
 
     if(2 <= neighberHitNum){
         lk_info << "number of neighber Hit: " << neighberHitNum << " Sum of ADC: " << sumADC << endl;
-        hSumADC -> Fill(sumADC);
+        hSumADC[0] -> Fill(sumADC);
+        hSumADC[maxSection+1] -> Fill(sumADC);
     }
     hHitNum -> Fill(hitNum);
 }
@@ -120,10 +171,21 @@ bool STDEventViewer::EndOfRun()
     hHitNum -> Draw();
 
     c1 -> cd(3);
-    hSumADC -> Draw();
+    hSumADC[0] -> Draw();
+    for(int i=0; i<3; i++){
+        hSumADC[i+1] -> Draw("same");
+    }
+
 
     c1 -> Draw();
     c1 -> SaveAs("./eventTotal.pdf");
+
+    outFile = new TFile(Form("hitHisto_%s.root",runNum.Data()), "recreate");
+    outFile -> cd();
+    for(int i=0; i<4; i++){
+        hSumADC[i] -> Write();
+    }
+    outFile -> Close();
 
     return true;
 }

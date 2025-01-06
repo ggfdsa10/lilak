@@ -290,7 +290,6 @@ Int_t AGETDecoder::FillData()
             }
         }
     }
-
-
+    return 1;
 }
 

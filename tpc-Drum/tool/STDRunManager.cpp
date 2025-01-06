@@ -1,37 +1,34 @@
-#include "LKRunManager.h"
+#include "STDRunManager.h"
 
-ClassImp(LKRunManager);
+ClassImp(STDRunManager);
 
-LKRunManager::LKRunManager()
+STDRunManager::STDRunManager()
 : fIsDAQStage(false), fInputRun(""), fRejectRun(""), fTotalEventNum(-1), fEventNumByRun(-1), fCurrentEventIdx(0)
 {
 }
 
-bool LKRunManager::Init()
+bool STDRunManager::Init()
 {
     if(fInputRun != ""){
         fRunList = SejongDAQFlow::GetRunList(fInputRun, fRejectRun, fIsDAQStage);
-
         if(fIsDAQStage){
             fDecoder = new AGETDecoder();
             LKRun::SetEventTrigger(fDecoder);
         }
     }
-    else{lk_error << "LKRunManager::Init() There is no set the Input Run List!!!" << endl;}
+    // else{lk_error << "STDRunManager::Init() There is no set the Input Run List!!!" << endl;}
     LKRun::SetAutoTermination(false);
 
     return true;
 }
 
-bool LKRunManager::Run()
+bool STDRunManager::Run()
 {
     if(fIsDAQStage){
         for(int run=0; run<fRunList.size(); run++){
             cout << "test start of run" << endl;
             LKRun::SetOutputFile(Form("./test_%i.root", fRunList[run].first));
             LKRun::Init();
-
-            cout << "test " << endl;
 
             // for AGET Decoder
             fDecoder -> Clear();
@@ -47,8 +44,9 @@ bool LKRunManager::Run()
     }
     else{
         cout << fInputRun << endl;
-        LKRun::SetDataPath(fDataPath);
-        LKRun::AddInputList(fInputRun);
+        for(int run=0; run<fRunList.size(); run++){
+            LKRun::AddInputFile(Form("./test_%i.root", fRunList[run].first));
+        }
         LKRun::Init();
         LKRun::Run();
     }
@@ -57,16 +55,16 @@ bool LKRunManager::Run()
     return true;
 }
 
-bool LKRunManager::EndOfRun()
+bool STDRunManager::EndOfRun()
 {
     return true;
 }
 
-void LKRunManager::SetDatapath(TString path){fDataPath = path;}
-void LKRunManager::SetRunList(TString list){fInputRun = list;}
-void LKRunManager::SetRejectRun(TString list){fRejectRun = list;}
+void STDRunManager::SetDatapath(TString path){fDataPath = path;}
+void STDRunManager::SetRunList(TString list){fInputRun = list;}
+void STDRunManager::SetRejectRun(TString list){fRejectRun = list;}
 
-void LKRunManager::SetEventNumber(int event){fTotalEventNum = event;}
-void LKRunManager::SetEventNumByRun(int event){fEventNumByRun = event;}
+void STDRunManager::SetEventNumber(int event){fTotalEventNum = event;}
+void STDRunManager::SetEventNumByRun(int event){fEventNumByRun = event;}
 
-void LKRunManager::SetDAQStage(){fIsDAQStage = true;}
+void STDRunManager::SetDAQStage(){fIsDAQStage = true;}

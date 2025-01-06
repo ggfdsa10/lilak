@@ -16,6 +16,8 @@ bool STDPadPlane::Init()
     InitPadPlaneGeometry();
     InitPadMapping();
 
+    SetDataFromBranch();
+
     return true;
 }
 

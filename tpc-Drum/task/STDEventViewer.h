@@ -12,6 +12,7 @@
 #include "LKHit.h"
 #include "TClonesArray.h"
 
+#include "TFile.h"
 #include "TH1D.h"
 #include "TH1I.h"
 #include "TH2Poly.h"
@@ -27,8 +28,9 @@ class STDEventViewer : public LKTask
         void Exec(Option_t*);
         bool EndOfRun();
 
-    private:
+        void SetRunNumber(TString run){runNum = run;}
 
+    private:
         TPCDrum *fDetector = nullptr;
         STDPadPlane *fPadPlane = nullptr;
 
@@ -40,8 +42,12 @@ class STDEventViewer : public LKTask
         TH2Poly* hPoly = nullptr;
         TGraph* hGraph = nullptr;
 
-        TH1D* hSumADC = nullptr;
+        TH1D* hSumADC[4];// section
         TH1I* hHitNum = nullptr;
+
+        TFile* outFile;
+        TString runNum;
+
 
 
 

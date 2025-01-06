@@ -39,7 +39,6 @@ class AGETDecoder : public LKTask
 
         Int_t FillData();
 
-
         TPCDrum* fDetector = nullptr;
         STDPadPlane* fDetectorPlane = nullptr;
 

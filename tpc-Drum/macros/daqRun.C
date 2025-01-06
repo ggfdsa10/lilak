@@ -1,11 +1,9 @@
 void daqRun()
 {
-    auto runManager = new LKRunManager();
+    auto runManager = new STDRunManager();
     runManager -> AddDetector(new TPCDrum());
     runManager -> SetDAQStage(); // for decoding
-    runManager -> SetRunList("240824003");
-
-    // runManager -> SetEventNumber(1000);
+    runManager -> SetRunList("241014002");
 
     STDNoiseSubtractor* noiseSubtractor = new STDNoiseSubtractor();
     STDPulseAnalyser* pulseAnal = new STDPulseAnalyser();

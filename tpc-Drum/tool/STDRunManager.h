@@ -14,11 +14,11 @@
 // run files clustering and managing, to be updated
 // multi-processing mode with this manager will update... 
 
-class LKRunManager : public LKRun
+class STDRunManager : public LKRun
 {
     public:
-        LKRunManager();
-        virtual ~LKRunManager(){}
+        STDRunManager();
+        virtual ~STDRunManager(){}
 
         bool Init();
         bool Run();
@@ -40,7 +40,6 @@ class LKRunManager : public LKRun
         void SetDAQStage(); // Only convert mode from DAQ data (graw files) to LILAK format ROOT files 
 
     private:
-        LKRun* fRun = nullptr;
         AGETDecoder* fDecoder = nullptr;
 
         bool fIsDAQStage;
@@ -53,7 +52,7 @@ class LKRunManager : public LKRun
         int fEventNumByRun;
         int fCurrentEventIdx;
 
-    ClassDef(LKRunManager,1);
+    ClassDef(STDRunManager,1);
 };
 
 #endif

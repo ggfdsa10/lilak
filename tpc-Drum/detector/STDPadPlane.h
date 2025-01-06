@@ -24,6 +24,9 @@ class STDPadPlane : public LKDetectorPlane
         void Clear(Option_t *option="");
         void Print(Option_t *option="") const;
 
+        bool SetDataFromBranch(){return true;}
+        void FillDataToHist(){;}
+
         bool IsInBoundary(Double_t x, Double_t y);
         
         Int_t FindChannelID(Double_t x, Double_t y);
@@ -62,6 +65,7 @@ class STDPadPlane : public LKDetectorPlane
     private:
         void InitPadPlaneGeometry();
         void InitPadMapping();
+        // void InitPadMapping();
 
         const int fAsAdNum = 3;
         const int fAGETNum = 4;
@@ -89,5 +93,12 @@ class STDPadPlane : public LKDetectorPlane
 
     ClassDef(STDPadPlane,1);
 };
+
+
+
+
+
+
+
 
 #endif
