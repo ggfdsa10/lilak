@@ -59,6 +59,7 @@ class LKDrawingGroup : public TObjArray
         virtual void Print(Option_t *option="") const;
         virtual Int_t Write(const char *name = nullptr, Int_t option=TObject::kSingleKey, Int_t bufsize = 0) const;
         void WriteFile(TString fileName="", TString option="");
+        void WriteFitParameterFile(TString tag="");
 
         LKDataViewer* CreateViewer();
 
@@ -94,6 +95,7 @@ class LKDrawingGroup : public TObjArray
         TGraph*    FindGraph(TString name);
         TF1*       FindFunction(TString name);
         TObject*   FindClassObject(TString name, TClass *tclass);
+        TObject*   FindObject(const char* name) const;
 
         // file
         TString GetFileName() { return fFileName; }
@@ -114,6 +116,7 @@ class LKDrawingGroup : public TObjArray
         LKDrawing* GetDrawing(int iDrawing);
         LKDrawing* CreateDrawing(TString name="", bool addToList=true);
         void       AddDrawing(LKDrawing* drawing);
+        void       AddDrawing(TObjArray* array);
         void       AddGraph(TGraph* graph, TString drawOption="", TString title="");
         void       AddHist(TH1 *hist, TString drawOption="", TString title="");
         int        GetNumDrawings() const;
@@ -136,7 +139,7 @@ class LKDrawingGroup : public TObjArray
         void AddOption(TString option, double value) { LKMisc::AddOption(fGlobalOption,option,value); }
 
 
-    ClassDef(LKDrawingGroup, 1)
+    ClassDef(LKDrawingGroup, 2)
 };
 
 #endif
