@@ -13,7 +13,6 @@
 #include "SejongDAQFlow.h"
 #include "AGETGrawFrame.h"
 
-
 class AGETDecoder : public LKTask
 {
     public:
@@ -46,7 +45,6 @@ class AGETDecoder : public LKTask
         int fEventNum = -1;
 
         int fAsAdNum = 0;
-        int fPadNum = 0;
 
         TClonesArray* fEventHeaderArray = nullptr;
         TClonesArray* fChannelArray = nullptr;
