@@ -38,6 +38,7 @@ class LKDrawing : public TObjArray
         void Init();
         void CopyTo(LKDrawing* drawing, bool clearFirst=true);
         virtual Double_t GetHistEntries() const;
+        TString GetPrintLine(TString option="") const;
 
         ////////////////////////////////////////////////////////////////////////////////////
         void Fill(TTree* tree);
@@ -53,15 +54,20 @@ class LKDrawing : public TObjArray
         /// title will be used when creating legend using SetCreateLegend method. Some specaial cases are:
         /// - "legendx" : This object will not be added to the legend when SetCreateLegend is called.
         /// - "." : Same as legendx
-        void Add(TObject *dataObj, TString drawOption, TString title="");
-        void AddLegendLine(TString title);
+        int  Add(TObject *dataObj, TString drawOption, TString title="");
+        int  AddLegendLine(TString title);
         void SetFitObjects(TObject *data, TF1 *fit);
+        bool Fit(TString option="RQ0B");
         void AddDrawing(LKDrawing *drawing);
         void SetTitle(int i, TString title) { fTitleArray[i] = title; }
         void SetOption(int i, TString option) { fDrawOptionArray[i] = option; }
         void SetCanvas(TVirtualPad* cvs) { fCvs = (TPad*) cvs; }
         void SetCanvas(TPad* cvs) { fCvs = (TPad*) cvs; }
         void SetCanvas(TCanvas* cvs) { fCvs = (TPad*) cvs; }
+
+        ////////////////////////////////////////////////////////////////////////////////////
+        void SetOn(int iObj, bool on);
+        bool GetOn(int iObj);
 
         ////////////////////////////////////////////////////////////////////////////////////
         int GetNumDrawings() const { return GetEntries(); }
@@ -82,6 +88,7 @@ class LKDrawing : public TObjArray
         void MakeLegendCorner(TPad* cvs, TLegend *legend, int iCorner=0);
         void MakePaveTextCorner(TPad* cvs, TPaveText *pvtt, int iCorner=0);
         void SetMainHist(TPad *pad, TH1* hist);
+        void SetMainTitle(TString title);
 
         TH2D* MakeGraphFrame();
         TH2D* MakeGraphFrame(TGraph* graph, TString mxyTitle="");
@@ -90,6 +97,8 @@ class LKDrawing : public TObjArray
         ////////////////////////////////////////////////////////////////////////////////////
         TString GetGlobalOption() const { return fGlobalOption; }
         void SetGlobalOption(TString option) { fGlobalOption = option; }
+        void SetTitleArray(TString titleArray);
+        void SetDrawOptionArray(TString drawOptionArray);
         bool CheckOption(TString option) { return LKMisc::CheckOption(fGlobalOption,option); }
         int FindOptionInt(TString option, int value) { return LKMisc::FindOptionInt(fGlobalOption,option,value); }
         double FindOptionDouble(TString option, double value) { return LKMisc::FindOptionDouble(fGlobalOption,option,value); }
@@ -151,7 +160,6 @@ class LKDrawing : public TObjArray
         void SetLegendBelowStats() { AddOption("legend_below_stats"); }
         void SetHistCCMode() { AddOption("histcc"); }
         void SetMergePaveTextToStats() { AddOption("merge_pvtt_stats"); }
-
         void SetLeftMargin(double mg)   { AddOption("l_margin",mg); }
         void SetRightMargin(double mg)  { AddOption("r_margin",mg); }
         void SetBottomMargin(double mg) { AddOption("b_margin",mg); }
@@ -177,14 +185,15 @@ class LKDrawing : public TObjArray
         void SetStatBottomRightCorner() { AddOption("stats_corner",3); }
         void SetStatsFillStyle(int fillStyle) { AddOption("stats_fillstyle",fillStyle); }
         void SetOptStat(int mode) { AddOption("opt_stat",mode); }
-        void SetOptFit(int mode) { AddOption("opt_fit",mode); }
+        void SetOptFit(int mode=111) { AddOption("opt_fit",mode); }
         //void SetMainTitleAttribute();
         //void SetTitleAttribute(int i, int font, double size, double offset);
         //void SetLabelAttribute(int i, int font, double size, double offset);
         void SetPaveDx(double dx) { AddOption("pave_dx",dx); }
         void SetPaveLineDy(double dy_line) { AddOption("pave_line_dy",dy_line); }
         void SetPaveSize(double dx, double dy_line) { SetPaveDx(dx); SetPaveLineDy(dy_line); }
-        void SetCreateFrame(TString name="", TString title="") { AddOption("create_gframe"); AddOption("gframe_name",name); AddOption("gframe_title",title); } ///< Create frame if no frame histogram exist.
+        void SetCreateFrame(TString name="", TString title="", TString option="") { AddOption("create_gframe"); AddOption("gframe_name",name); AddOption("gframe_title",title); if (option.IsNull()==false) AddOption("gframe_option",option); } ///< Create frame if no frame histogram exist.
+        void SetCloneReplaceMainHist(TString name="") { AddOption("cr_mainh"); if (name.IsNull()==false) AddOption("cr_mainh_name",name); } ///< Clone fMainHist and replace fMainHist
         void SetCreateLegend(int iCorner=-1, double dx=0, double dyline=0) {
             AddOption("create_legend");
             SetLegendBelowStats();
@@ -192,6 +201,14 @@ class LKDrawing : public TObjArray
             if (dx>0) SetPaveDx(dx);
             if (dyline>0) SetPaveLineDy(dyline);
         }
+
+        ////////////////////////////////////////////////////////////////////////////////////
+        bool GetFit() const { if (fFitFunction!=nullptr) return true; return false; }
+        bool FitDataIsHist() const { if (fDataHist!=nullptr) return true; return false; }
+        bool FitDataIsGraph() const { if (fDataGraph!=nullptr) return true; return false; }
+        TH1*     GetDataHist() { return fDataHist; }
+        TGraph*  GetDataGraph() { return fDataGraph; }
+        TF1*     GetFitFunction() { return fFitFunction; }
 
     private:
         void MakeLegend(bool remake=false);
@@ -204,13 +221,14 @@ class LKDrawing : public TObjArray
     private:
         LKCut*   fCuts         = nullptr; //!
         TPad*    fCvs          = nullptr; //!
-        TH1*     fMainHist     = nullptr;
-        //TGraph*  fMainGraph    = nullptr;
-        //TF1*     fMainFunction = nullptr;
+        TH1*     fMainHist     = nullptr; //!
+        TH1*     fDataHist     = nullptr; //!
+        TGraph*  fDataGraph    = nullptr; //!
+        TF1*     fFitFunction  = nullptr; //!
         TH1*     fHistPixel    = nullptr; //!
         TLegend* fLegend       = nullptr; //!
 
-    ClassDef(LKDrawing, 1)
+    ClassDef(LKDrawing, 2)
 };
 
 #endif
