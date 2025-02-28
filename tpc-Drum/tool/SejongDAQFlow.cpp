@@ -70,7 +70,6 @@ DAQList SejongDAQFlow::GetDAQList(vector<TString> fileList)
         }
         if(file.Index("CoBo_") != -1){asadIdx = 0;} // rCoBo
         if(asadIdx < 0 || 4 < asadIdx){continue;}
-
         tmpAsAdFile[asadIdx].push_back(file);
     }
 

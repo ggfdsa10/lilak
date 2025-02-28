@@ -103,7 +103,6 @@ TH2* STDPadPlane::GetHist(Option_t *option)
 
 void STDPadPlane::DrawFrame(Option_t *option)
 {
-    ;
 }
 
 void STDPadPlane::InitPadPlaneGeometry()

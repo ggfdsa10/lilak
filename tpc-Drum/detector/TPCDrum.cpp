@@ -37,10 +37,6 @@ bool TPCDrum::BuildDetectorPlane()
 
 bool TPCDrum::IsInBoundary(Double_t x, Double_t y, Double_t z)
 {
-    // example (x,y,z) is inside the plane boundary
-    //if (x>-10 and x<10)
-    //    return true;
-    //return false;
     return true;
 }
 

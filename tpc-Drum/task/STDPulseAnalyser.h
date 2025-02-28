@@ -9,7 +9,7 @@
 
 #include "TPCDrum.h"
 #include "STDPadPlane.h"
-#include "LKPad.h"
+#include "GETChannel.h"
 #include "LKHit.h"
 #include "TClonesArray.h"
 
@@ -29,10 +29,10 @@ class STDPulseAnalyser : public LKTask
         void GetMaxPoint(int* adcArray, double& maxADC, double& maxTB);
 
         TPCDrum *fDetector = nullptr;
-        STDPadPlane *fPadPlane = nullptr;
+        STDPadPlane *fDetectorPlane = nullptr;
 
-        TClonesArray* fPadArray = nullptr;
-        LKPad* fPad = nullptr;
+        TClonesArray* fChannelArray = nullptr;
+        GETChannel* fChannel = nullptr;
 
         TClonesArray* fHitArray = nullptr;
         LKHit* fHit = nullptr;

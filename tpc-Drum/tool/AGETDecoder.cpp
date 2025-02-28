@@ -12,11 +12,14 @@ bool AGETDecoder::Init()
 {
     lk_info << "Initializing AGETDecoder" << std::endl;
 
-    fEventHeaderArray = fRun -> RegisterBranchA("FrameHeader", "LKEventHeader", 1);
-    fPadArray = fRun -> RegisterBranchA("RawPad", "LKPad", 768);
-
     fDetector = (TPCDrum *) fRun -> GetDetector();
     fDetectorPlane = (STDPadPlane*) fDetector -> GetDetectorPlane();
+
+    fEventHeaderArray = fRun -> RegisterBranchA("FrameHeader", "LKEventHeader", 1);
+
+    int tpc_asadNum = fDetectorPlane -> GetAsAdNum();
+    int tpc_AGETNum = fDetectorPlane -> GetAGETNum();
+    fChannelArray = fRun -> RegisterBranchA("RawPad", "GETChannel", tpc_asadNum*tpc_AGETNum);
 
     if(!fDAQFrame){fDAQFrame = new AGETGrawFrame[ASADNUM];}
 
@@ -69,12 +72,18 @@ void AGETDecoder::Run(Long64_t numEvents)
         }
         
         FillData();
+        cout << "Test " << endl;
         fRun -> ExecuteNextEvent();
+
+        cout << "Test 2" << endl;
 
         if(fEventNum != -1){
             if(fRun->GetCurrentEventID()==fEventNum){break;}
         }
+
+        cout << fEventIdx <<" " << "end of Run while state " << endl;
         fEventIdx++;
+        
     }
 }
 
@@ -250,21 +259,19 @@ Int_t AGETDecoder::ReadItem(int asadIdx)
 
 Int_t AGETDecoder::FillData()
 {
-    // test code !!!
-    fPadArray -> Clear("C");
-    for(int asad=0; asad<1; asad++){
+    fChannelArray -> Clear("C");
+    for(int asad=0; asad<3; asad++){
+        cout << " is it OK?" << " " << asad << endl;
         for(int aget=0;aget<4; aget++){
             for(int chan=0; chan<68; chan++){
                 if(fDetectorPlane->IsFPNChannel(chan)){continue;}
-                if(fDAQFrame[asad].mIsHit[aget][chan] == false){continue;} // do not save the not hit channel
+                if(fDAQFrame[asad].mIsHit[aget][chan] == false){continue;} // don't save the not hit channel
                 
                 int layer = fDetectorPlane -> GetLayerID(asad, aget, chan);
                 int row = fDetectorPlane -> GetRowID(asad, aget, chan);
                 int padID = fDetectorPlane -> GetPadID(layer, row);
-                double x = fDetectorPlane -> GetX(layer, row);
-                double y = fDetectorPlane -> GetY(layer, row);
 
-                fPad = (LKPad*)fPadArray -> ConstructedAt(padID);
+                fChannel = (GETChannel*)fChannelArray -> ConstructedAt(padID);
                 int fpnChannel = fDetectorPlane->GetFPNChannelID(chan);
 
                 // subtract FPN Channel
@@ -275,18 +282,12 @@ Int_t AGETDecoder::FillData()
                     ADC[tb] = adc - fpn;
                 }
 
-                fPad -> SetAsad(asad);
-                fPad -> SetAget(aget);
-                fPad -> SetChan(chan);
+                fChannel -> SetAsad(asad);
+                fChannel -> SetAget(aget);
+                fChannel -> SetChan(chan);
+                fChannel -> SetPadID(padID);
 
-                fPad -> SetPlaneID(0);
-                fPad -> SetSection(0);
-                fPad -> SetLayer(layer);
-                fPad -> SetRow(row);
-                fPad -> SetPosition(x, y);
-                fPad -> SetPadID(padID);
-
-                fPad -> SetBufferRawSig(ADC);
+                fChannel -> SetWaveformY(ADC);
             }
         }
     }

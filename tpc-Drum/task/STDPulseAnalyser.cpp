@@ -11,8 +11,8 @@ STDPulseAnalyser::STDPulseAnalyser()
 bool STDPulseAnalyser::Init()
 {
     fDetector = (TPCDrum *) fRun -> GetDetector();
-    fPadPlane = (STDPadPlane*) fDetector -> GetDetectorPlane();
-    fPadArray = fRun -> GetBranchA("RawPad");
+    fDetectorPlane = (STDPadPlane*) fDetector -> GetDetectorPlane();
+    fChannelArray = fRun -> GetBranchA("RawPad");
     fHitArray = fRun -> RegisterBranchA("Hit", "LKHit");
 
     return true;
@@ -23,18 +23,22 @@ void STDPulseAnalyser::Exec(Option_t *option)
     fHitArray -> Clear("C");
 
     int hitNum = 0;
-    int padNum = fPadArray -> GetEntries();
+    int padNum = fChannelArray -> GetEntries();
     for(int pad=0; pad<padNum; pad++){
-        fPad = (LKPad*)fPadArray -> At(pad);
+        fChannel = (GETChannel*)fChannelArray -> At(pad);
 
-        int padID = fPad -> GetPadID();
-        int layer = fPad -> GetLayer();
-        int row = fPad -> GetRow();
-        double x = fPad -> GetX();
-        double y = fPad -> GetY();
+        int asadId = fChannel -> GetAsad();
+        int agetId = fChannel -> GetAget();
+        int chanId = fChannel -> GetChan();
+        int padID = fChannel -> GetPadID();
+
+        int layer = fDetectorPlane -> GetLayerID(asadId, agetId, chanId);
+        int row = fDetectorPlane -> GetRowID(asadId, agetId, chanId);
+        double x = fDetectorPlane -> GetX(layer, row);
+        double y = fDetectorPlane -> GetY(layer, row);
 
         if(fDetector -> IsDeadChan(0, padID)){continue;}
-        auto adcArr = fPad -> GetArrayRawSig();
+        auto adcArr = fChannel -> GetWaveformY();
 
         double adcPoint = -999;
         double tbPoint = -999;

@@ -6,7 +6,7 @@
 #include "LKParameterContainer.h"
 #include "LKRun.h"
 #include "LKTask.h"
-#include "LKPad.h"
+#include "GETChannel.h"
 #include "TPCDrum.h"
 #include "STDPadPlane.h"
 
@@ -49,10 +49,10 @@ class AGETDecoder : public LKTask
         int fPadNum = 0;
 
         TClonesArray* fEventHeaderArray = nullptr;
-        TClonesArray* fPadArray = nullptr;
+        TClonesArray* fChannelArray = nullptr;
 
         AGETGrawFrame* fDAQFrame = nullptr;
-        LKPad* fPad = nullptr;
+        GETChannel* fChannel = nullptr;
 
         DAQList fDAQList;
         std::ifstream fDAQFile[ASADNUM];

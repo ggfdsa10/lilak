@@ -10,8 +10,8 @@ STDNoiseSubtractor::STDNoiseSubtractor()
 bool STDNoiseSubtractor::Init()
 {
     fDetector = (TPCDrum *) fRun -> GetDetector();
-    fPadPlane = (STDPadPlane*) fDetector -> GetDetectorPlane();
-    fPadArray = fRun -> GetBranchA("RawPad");
+    fDetectorPlane = (STDPadPlane*) fDetector -> GetDetectorPlane();
+    fChannelArray = fRun -> GetBranchA("RawPad");
 
     fADCTmp = new TH1D("ADCTmp", "", 512, 0, 512);
     for(int asad=0; asad<4; asad++){
@@ -35,13 +35,13 @@ void STDNoiseSubtractor::Exec(Option_t *option)
     double tmpTempADC[asadNum][tbIdxNum][2]; // [asad][tbIdx][mean, StdDev]
     memset(tmpTempADC, 0., sizeof(tmpTempADC));
 
-    const int padNum = fPadArray -> GetEntries();
+    const int padNum = fChannelArray -> GetEntries();
     for(int pad=0; pad<padNum; pad++){
-        fPad = (LKPad*)fPadArray -> At(pad);
-        auto rawADCArr = fPad -> GetArrayRawSig();
+        fChannel = (GETChannel*)fChannelArray -> At(pad);
+        auto rawADCArr = fChannel -> GetWaveformY();
 
-        int asadID = fPad -> GetAsad();
-        int padID = fPad -> GetPadID();
+        int asadID = fChannel -> GetAsad();
+        int padID = fChannel -> GetPadID();
         if(fDetector -> IsDeadChan(0, padID)){continue;} // dead Channel 
 
         // Find a Mean of ADC by Pad
@@ -59,15 +59,14 @@ void STDNoiseSubtractor::Exec(Option_t *option)
         for(int tbIdx=0; tbIdx<fTBIdxNum; tbIdx++){
             int tb = (tbIdx+1)*fTBInterval;
             tmpTempADC[asadID][tbIdx][0] += tmpADC[padID][tbIdx];
-
         }
         tmpPadNum[asadID] += 1.;
     }
 
     for(int pad=0; pad<padNum; pad++){
-        fPad = (LKPad*)fPadArray -> At(pad);
-        int asadID = fPad -> GetAsad();
-        int padID = fPad -> GetPadID();
+        fChannel = (GETChannel*)fChannelArray -> At(pad);
+        int asadID = fChannel -> GetAsad();
+        int padID = fChannel -> GetPadID();
         if(fDetector -> IsDeadChan(0, padID)){continue;}
 
         for(int tbIdx=0; tbIdx<fTBIdxNum; tbIdx++){
@@ -83,9 +82,9 @@ void STDNoiseSubtractor::Exec(Option_t *option)
     }
 
     for(int pad=0; pad<padNum; pad++){
-        fPad = (LKPad*)fPadArray -> At(pad);
-        int asadID = fPad -> GetAsad();
-        int padID = fPad -> GetPadID();
+        fChannel = (GETChannel*)fChannelArray -> At(pad);
+        int asadID = fChannel -> GetAsad();
+        int padID = fChannel -> GetPadID();
         if(fDetector -> IsDeadChan(0, padID)){continue;}
 
         int rejectIdx = 0;
@@ -108,11 +107,11 @@ void STDNoiseSubtractor::Exec(Option_t *option)
     }
 
     for(int pad=0; pad<padNum; pad++){
-        fPad = (LKPad*)fPadArray -> At(pad);
-        int asadID = fPad -> GetAsad();
-        int padID = fPad -> GetPadID();
+        fChannel = (GETChannel*)fChannelArray -> At(pad);
+        int asadID = fChannel -> GetAsad();
+        int padID = fChannel -> GetPadID();
         if(fDetector -> IsDeadChan(0, padID)){continue;}
-        auto rawADCArr = fPad -> GetArrayRawSig();
+        auto rawADCArr = fChannel -> GetWaveformY();
 
         fADCTmp -> Reset("ICESM");
         for(int tb=fTBStartIdx; tb<fTBEndIdx; tb++){
@@ -130,7 +129,7 @@ void STDNoiseSubtractor::Exec(Option_t *option)
             double noise =  fNoiseTemplate[asadID] -> GetBinContent(tb+1) - fTmpADCOffset;
             tmpADC2[tb] = int(adc - noise);
         }
-        fPad -> SetBufferRawSig(tmpADC2);
+        fChannel -> SetWaveformY(tmpADC2);
     }
 }
 

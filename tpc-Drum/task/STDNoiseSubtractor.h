@@ -9,7 +9,7 @@
 
 #include "TPCDrum.h"
 #include "STDPadPlane.h"
-#include "LKPad.h"
+#include "GETChannel.h"
 #include "TClonesArray.h"
 
 #include "TH1D.h"
@@ -27,10 +27,10 @@ class STDNoiseSubtractor : public LKTask
 
     private:
         TPCDrum *fDetector = nullptr;
-        STDPadPlane *fPadPlane = nullptr;
+        STDPadPlane *fDetectorPlane = nullptr;
 
-        TClonesArray* fPadArray = nullptr;
-        LKPad* fPad = nullptr;
+        TClonesArray* fChannelArray = nullptr;
+        GETChannel* fChannel = nullptr;
 
         TH1D* fADCTmp = nullptr;
         TH2D* fADCTemplate[4];
