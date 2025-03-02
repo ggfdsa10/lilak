@@ -60,7 +60,6 @@ void AGETDecoder::Run(Long64_t numEvents)
             }
 
             fDAQFrame[i].Clear();
-            cout << " asad " << i << endl;
             
             ReadHeader(i);
             ReadItem(i);
