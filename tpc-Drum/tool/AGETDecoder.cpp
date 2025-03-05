@@ -255,22 +255,21 @@ Int_t AGETDecoder::FillData()
 {
     fChannelArray -> Clear("C");
     for(int asad=0; asad<fAsAdNum; asad++){
-        for(int aget=0;aget<4; aget++){
-            for(int chan=0; chan<68; chan++){
+        for(int aget=0; aget<AGETNUM; aget++){
+            for(int chan=0; chan<CHANNUM; chan++){
                 if(fDetectorPlane->IsFPNChannel(chan)){continue;}
-                if(fDAQFrame[asad].mIsHit[aget][chan] == false){continue;} // don't saved, if is not hitted channel
+                if(fDAQFrame[asad].mIsHit[aget][chan] == false){continue;} // we don't saved it, if it is not hitted channel
 
                 int layer = fDetectorPlane -> GetLayerID(asad, aget, chan);
                 int row = fDetectorPlane -> GetRowID(asad, aget, chan);
                 int padID = fDetectorPlane -> GetPadID(layer, row);
-                if(padID < 0){continue;}
 
                 fChannel = (GETChannel*)fChannelArray -> ConstructedAt(padID);
                 int fpnChannel = fDetectorPlane->GetFPNChannelID(chan);
 
-                // subtract FPN Channel
-                int ADC[512];
-                for(int tb=0; tb<512; tb++){ 
+                // Subtract the FPN signal
+                int ADC[TIMEBUCKET];
+                for(int tb=0; tb<TIMEBUCKET; tb++){ 
                     int adc = fDAQFrame[asad].mADC[aget][chan][tb];
                     int fpn = fDAQFrame[asad].mADC[aget][fpnChannel][tb];
                     ADC[tb] = adc - fpn;
