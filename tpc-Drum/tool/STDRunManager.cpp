@@ -12,7 +12,7 @@ bool STDRunManager::Init()
     if(fInputRun != ""){
         fRunList = SejongDAQFlow::GetRunList(fInputRun, fRejectRun, fIsDAQStage);
         if(fIsDAQStage){
-            fDecoder = new AGETDecoder();
+            fDecoder = new STDDecoder();
             LKRun::SetEventTrigger(fDecoder);
         }
     }
@@ -26,7 +26,6 @@ bool STDRunManager::Run()
 {
     if(fIsDAQStage){
         for(int run=0; run<fRunList.size(); run++){
-            cout << "test start of run" << endl;
             LKRun::SetOutputFile(Form("./test_%i.root", fRunList[run].first));
             LKRun::Init();
 

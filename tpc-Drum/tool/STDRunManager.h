@@ -9,7 +9,7 @@
 #include "LKRun.h"
 
 #include "SejongDAQFlow.h"
-#include "AGETDecoder.h"
+#include "STDDecoder.h"
 
 // run files clustering and managing, to be updated
 // multi-processing mode with this manager will update... 
@@ -40,7 +40,7 @@ class STDRunManager : public LKRun
         void SetDAQStage(); // Only convert mode from DAQ data (graw files) to LILAK format ROOT files 
 
     private:
-        AGETDecoder* fDecoder = nullptr;
+        STDDecoder* fDecoder = nullptr;
 
         bool fIsDAQStage;
         TString fDataPath;
