@@ -1,7 +1,6 @@
 LKG4Manager/
     VisMode false
     NPToolMode true
-    G4InputFile data/single_proton_100MeV.gen
     G4OutputFile simTest.root
     SuppressG4InitMessage true
 
