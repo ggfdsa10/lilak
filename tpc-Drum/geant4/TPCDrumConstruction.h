@@ -6,6 +6,7 @@
 #include "LKParameterContainer.h"
 
 #include "G4UnionSolid.hh"
+#include "G4SubtractionSolid.hh"
 #include "G4Box.hh"
 #include "G4Colour.hh"
 #include "G4FieldManager.hh"
@@ -41,11 +42,16 @@ class TPCDrumConstruction : public DetectorConstruction
         G4VPhysicalVolume* Construct();
 
     private:
+        G4LogicalVolume* GetSiDetector(TString name);
+
         G4Material* GetGasMaterial(TString gasName);
+        G4Material* GetSolidMaterial(TString name);
+
+        G4VisAttributes* GetColor(TString color, double transparency=0.2);
         
-        LKParameterContainer* mPar;
-        G4Region* mReactionRegion; 
-        vector<G4VFastSimulationModel*> mReactionModel;
+        LKParameterContainer* fPar;
+        G4Region* fReactionRegion; 
+        vector<G4VFastSimulationModel*> fReactionModel;
 };
 
 #endif
