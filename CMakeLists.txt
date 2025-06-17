@@ -16,7 +16,7 @@ set(LILAK_PROJECT_LIST      CACHE INTERNAL "") # List of LILAK projects to build
 set(LILAK_PROJECT_MAIN      CACHE INTERNAL "")
 set(GRUDIR               "" CACHE INTERNAL "")
 set(GETDIR               "" CACHE INTERNAL "")
-set(BUILD_NPTOOL        OFF CACHE INTERNAL "") # NPTool simulation
+set(BUILD_NPTOOL         ON CACHE INTERNAL "") # NPTool simulation
 
 #---Configuration
 include(log/build_options.cmake)
