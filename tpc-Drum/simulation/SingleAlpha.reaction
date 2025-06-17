@@ -1,0 +1,17 @@
+Beam
+ Particle = 4He
+ ExcitationEnergy = 0 MeV
+ Energy = 1 GeV
+ SigmaEnergy = 0.0 MeV
+ SigmaThetaX = 0.000 rad
+ SigmaPhiY = 0.000 rad
+ SigmaX = 0.0 mm
+ SigmaY = 0.0 mm
+ MeanThetaX = 0 rad
+ MeanPhiY = 0 rad
+ MeanX = 0 mm
+ MeanY = 0 mm
+ 
+ ZEmission = -330 mm # NOTE: TPC-Drum half-size 310 mm, please make sure value: -310 -beamEntranceDistance mm
+ 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
