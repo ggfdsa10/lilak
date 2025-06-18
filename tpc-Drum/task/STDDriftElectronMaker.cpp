@@ -26,11 +26,24 @@ void STDDriftElectronMaker::Exec(Option_t *option)
 {
     cout << fTrackArray -> GetEntries() << endl;
     cout << fStepArray -> GetEntries() << endl;
-
-    
 }
 
 bool STDDriftElectronMaker::EndOfRun()
 {
     return true;
+}
+
+void STDDriftElectronMaker::MakeElectronCluster()
+{
+
+}
+
+void STDDriftElectronMaker::DriftElectron()
+{
+    
+}
+
+void STDDriftElectronMaker::AvalancheElectron()
+{
+    
 }

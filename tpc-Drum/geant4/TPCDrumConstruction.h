@@ -41,6 +41,8 @@ class TPCDrumConstruction : public DetectorConstruction
 
         G4VPhysicalVolume* Construct();
 
+        G4LogicalVolume* GetGatingGridSolid();
+
     private:
         G4LogicalVolume* GetSiDetector(TString name);
 

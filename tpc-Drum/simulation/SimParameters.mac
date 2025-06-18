@@ -1,15 +1,15 @@
 LKG4Manager/
-    VisMode false
+    VisMode true
     NPToolMode true
     G4OutputFile simTest.root
     SuppressG4InitMessage true
 
 NPTool/
-    #ReactionFile Ne20_3alpha.reaction
-    ReactionFile SingleAlpha.reaction
+    ReactionFile Ne20_3alpha.reaction
+    #ReactionFile SingleAlpha.reaction
 
 TPCDrum/
-    GasPressure 760. # [torr]
+    GasPressure 760. #asasdf [torr]
     GasContourMixRatio 10. # [%] for contour gas
     WindowMaterial Havar # [Havar, etc..]
     WindowThickness 0.01 # [mm]
@@ -41,4 +41,5 @@ G4/
     tracking/verbose 0
     vis/verbose warnings
     run/setCutForAGivenParticle e- 100. mm
-    run/beamOn 100
+    run/beamOn 1
+    

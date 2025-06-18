@@ -167,6 +167,11 @@ G4VPhysicalVolume* TPCDrumConstruction::Construct()
     return physWorld;
 }
 
+G4LogicalVolume* TPCDrumConstruction::GetGatingGridSolid()
+{
+    return 0;
+}
+
 G4LogicalVolume* TPCDrumConstruction::GetSiDetector(TString name)
 {   
     const double siX = 40.3 * mm;

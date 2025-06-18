@@ -26,7 +26,6 @@ int main(int argc, char** argv)
     auto par = runManager -> GetParameterContainer();
 
     TString reactionFile = par->GetParString("NPTool/ReactionFile");
-
     NPOptionManager::getInstance()->SetIsSimulation();
     NPOptionManager::getInstance()->SetReactionFile(reactionFile.Data());
 

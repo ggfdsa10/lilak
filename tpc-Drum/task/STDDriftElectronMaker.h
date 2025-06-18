@@ -13,6 +13,7 @@
 
 class STDDriftElectronMaker : public LKTask
 { 
+
     public:
         STDDriftElectronMaker();
         virtual ~STDDriftElectronMaker() {}
@@ -22,10 +23,14 @@ class STDDriftElectronMaker : public LKTask
         bool EndOfRun();
 
     private:
+        void MakeElectronCluster();
+        void DriftElectron();
+        void AvalancheElectron();
+
         LKParameterContainer* fPar;
         TPCDrum *fDetector;
         STDPadPlane *fPadPlane;
-        
+
         TClonesArray* fChannelArray;
         TClonesArray* fTrackArray;
         TClonesArray* fStepArray;
