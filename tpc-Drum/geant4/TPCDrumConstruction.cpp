@@ -282,7 +282,7 @@ G4Material* TPCDrumConstruction::GetSolidMaterial(TString name)
 
         return PCB_FR4;
     }
-    else if(name.Index("Si") != -1){
+    else if(name.Index("SI") != -1){
         double SiDetectorDensity = 2.33 *g/cm3;
 
         G4Element* Si = nist -> FindOrBuildElement("Si", false);
@@ -292,7 +292,7 @@ G4Material* TPCDrumConstruction::GetSolidMaterial(TString name)
 
         return SiDetector;
     }
-    else if(name.Index("Havar") != -1){
+    else if(name.Index("HAVAR") != -1){
         double HavarFoilDensity = 8.3 *g/cm3;
 
         G4Element* Co = nist -> FindOrBuildElement("Co", false);
