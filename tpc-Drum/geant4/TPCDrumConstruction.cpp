@@ -10,130 +10,65 @@ G4VPhysicalVolume* TPCDrumConstruction::Construct()
     fPar = runManager -> GetParameterContainer();
 
     // =========================== world ================================ 
-    double worldX = 1.* m;
-    double worldY = 1.* m;
-    double worldZ = 1.* m;
-    G4Box* solidWorld = new G4Box("World", worldX, worldY, worldZ);
-    G4Material* matAir = GetGasMaterial("AIR");
-    G4LogicalVolume *logicWorld = new G4LogicalVolume(solidWorld, matAir, "World");
+    G4LogicalVolume *logicWorld = GetWorld();
     G4PVPlacement *physWorld = new G4PVPlacement(0, G4ThreeVector(0., 0., 0.), logicWorld, "World", 0, false, 0, true);
 
+
     // ========================== chamber ================================
-    double FlangeR = 50.*mm; // flange radious
-    double BeamLineLength = 620.*mm; // beamline+flange length along z-axis
-    double chamberR = 504.*mm; // [mm] TPC-Drum chamber R
-    double chamberHeight = 266.*mm; // [mm] TPC-Drum height
-
-    G4Tubs* solidChamber = new G4Tubs("chamber", 0., chamberR/2., chamberHeight/2., 0., 360*deg);
-    G4Tubs* solidFlange_Beamline = new G4Tubs("flange_beamline", 0., FlangeR/2., BeamLineLength/2., 0., 360*deg);
-    G4UnionSolid* detector = new G4UnionSolid("TPCDrum", solidFlange_Beamline, solidChamber, new G4RotationMatrix(0., CLHEP::pi/2, 0.), G4ThreeVector(0., 0., 0.));
-
-    G4Material* matGas = GetGasMaterial("HE4_CO2");
-
-    G4LogicalVolume* logicChamber = new G4LogicalVolume(detector, matGas, "TPCDrum");
+    G4LogicalVolume* logicChamber = GetTPCDrumChamber();
     logicChamber -> SetVisAttributes(GetColor("WHITE"));
-
     auto pvpChamber = new G4PVPlacement(0, G4ThreeVector(0.,0.,0.), logicChamber, "TPCDrum", logicWorld, false, 1, true);
 
-    // ========================== Chamber window material =============================
-    double windowThickness = fPar -> GetParDouble("TPCDrum/WindowThickness") * mm;
-    double window_shiftZ = (BeamLineLength+windowThickness)/2.;
 
-    G4Tubs* solidWindow = new G4Tubs("ChamberWindow", 0., FlangeR/2., windowThickness/2., 0., 360*deg);
-    G4Material* MatWindow = GetSolidMaterial(fPar -> GetParString("TPCDrum/WindowMaterial"));
-    G4LogicalVolume *logicWindow = new G4LogicalVolume(solidWindow, MatWindow, "ChamberWindow");
+    // ========================== Chamber window material =============================
+    double windowThickness = fPar -> GetParDouble("TPCDrum/WindowThickness") *mm;
+    const double window_shiftZ = (fBeamLineLength+windowThickness)*fHalfUnit;
+
+    G4LogicalVolume *logicWindow = GetBeamWindow();
     logicWindow -> SetVisAttributes(GetColor("WHITE", 0.6));
     auto pvpWindow_UpStream = new G4PVPlacement(0, G4ThreeVector(0., 0., -window_shiftZ), logicWindow, "ChamberWindow_upstream", logicWorld, false, 2, true);
     auto pvpWindow_DownStream = new G4PVPlacement(0, G4ThreeVector(0.,0., window_shiftZ), logicWindow, "ChamberWindow_downstream", logicWorld, false, 3, true);
 
+
     // ========================== readout PadPlane PCB and Pad ================================
-    const double readoutPCBThickness = 4.2*mm;
-    const double readoutPCBR = 370.*mm;
-    const double readOutPCB_shiftZ = chamberHeight/2.-4.2/2;
-    const double readOutPadAreaY = 144. *mm;
-    const double readOutPadAreaX = 74. *mm;
+    const double readOutPCB_shiftZ = fChamberHeight*fHalfUnit - fReadoutPCBThickness*fHalfUnit;
 
-    G4Tubs* solidReadoutPCB = new G4Tubs("ReadOutPCB", 0., readoutPCBR/2., readoutPCBThickness/2., 0., 360*deg);
-    G4Material* matPCB = GetSolidMaterial("ReadOutPCB");
-    G4LogicalVolume *logicReadoutPCB = new G4LogicalVolume(solidReadoutPCB, matPCB, "ReadOutPCB");
+    G4LogicalVolume *logicReadoutPCB = GetReadoutPCB();
+    G4LogicalVolume *logicReadoutPad = GetReadoutPadPlane();
+
     logicReadoutPCB -> SetVisAttributes(GetColor("BLUE"));
-    auto pvpReadoutPCB = new G4PVPlacement(new G4RotationMatrix(0., CLHEP::pi/2, 0.), G4ThreeVector(0., -readOutPCB_shiftZ, 0.), logicReadoutPCB, "ReadOutPCB", logicChamber, false, 4, true);
-
-    G4Box* solidReadoutPad = new G4Box("ReadOutPad", readOutPadAreaX/2., readoutPCBThickness/2., readOutPadAreaY/2.);
-    G4LogicalVolume *logicReadoutPad = new G4LogicalVolume(solidReadoutPad, matPCB, "ReadOutPad");
     logicReadoutPad -> SetVisAttributes(GetColor("YELLOW", 0.4));
+
+    auto pvpReadoutPCB = new G4PVPlacement(new G4RotationMatrix(0., CLHEP::pi/2, 0.), G4ThreeVector(0., -readOutPCB_shiftZ, 0.), logicReadoutPCB, "ReadOutPCB", logicChamber, false, 4, true);
     auto pvpReadoutPad = new G4PVPlacement(0, G4ThreeVector(0., -readOutPCB_shiftZ, 0.), logicReadoutPad, "ReadOutPad", logicChamber, false, 5, true);
 
-    // Tripple GEM area
-    const double gemSpaceLength = 200.*mm;
-    const double gemSpaceHeight= 3.*mm;
 
     // ========================== Field Cage ================================
-    const double fieldCageLength = 200.*mm; // field cage length
-    const double fieldCageHeight = 150.*mm; // field cage height
-    const double fieldCageSpacing = 5.*mm; // field cage spacing 
-    const double fieldCage_shiftZ = (chamberHeight/2. - fieldCageHeight/2. - readoutPCBThickness - gemSpaceHeight*3. - fieldCageSpacing)*mm;
-    const double fieldCagePCB_Thickness = 2*mm;
-
+    const double fieldCage_shiftZ = fChamberHeight*fHalfUnit - fFieldCageHeight*fHalfUnit - fReadoutPCBThickness - 3.*fGEMSpacing - fFieldCageSpacing;
     G4VisAttributes* greenColor = GetColor("GREEN", 0.1);
-    greenColor -> SetLineWidth(2);
 
-    // FieldCage left PCB 
-    G4Box* solidFieldCage_LeftPCB = new G4Box("fieldCage_leftPCB", fieldCagePCB_Thickness/2., fieldCageHeight/2., fieldCageLength/2.);
-    G4LogicalVolume* logicFieldCage_LeftPCB = new G4LogicalVolume(solidFieldCage_LeftPCB, matPCB, "fieldCage_leftPCB");
-    logicFieldCage_LeftPCB -> SetVisAttributes(greenColor);
-    auto pvpFieldCage_LeftPCB = new G4PVPlacement(new G4RotationMatrix(0., 0., 0.), G4ThreeVector((1+fieldCageLength/2.)*mm, -fieldCage_shiftZ, 0.), logicFieldCage_LeftPCB, "fieldCage_leftPCB", logicChamber, false, 6, true);
+    // FieldCage PCB
+    G4LogicalVolume* logicFieldCage_SideWall = GetFieldCageSideWall();
+    G4LogicalVolume* logicFieldCage_CathodePCB = GetFieldCageCathode();
+    G4LogicalVolume* logicFieldCage_DownStreamPCB = GetFieldCageDownStream();
+    G4LogicalVolume* logicFieldCage_UpStreamPCB = GetFieldCageUpStream();
 
-    // FieldCage Right PCB 
-    G4Box* solidFieldCage_RightPCB = new G4Box("fieldCage_RightPCB", fieldCagePCB_Thickness/2., fieldCageHeight/2., fieldCageLength/2.);
-    G4LogicalVolume* logicFieldCage_RightPCB = new G4LogicalVolume(solidFieldCage_RightPCB, matPCB, "fieldCage_RightPCB");
-    logicFieldCage_RightPCB -> SetVisAttributes(greenColor);
-    auto pvpFieldCage_RightPCB = new G4PVPlacement(new G4RotationMatrix(0., 0., 0.), G4ThreeVector(-(1+fieldCageLength/2.)*mm, -fieldCage_shiftZ, 0.), logicFieldCage_RightPCB, "fieldCage_RightPCB", logicChamber, false, 7, true);
-
-    // FieldCage Cathode PCB 
-    G4Box* solidFieldCage_CathodePCB = new G4Box("fieldCage_CathodePCB", fieldCageLength/2., fieldCagePCB_Thickness/2., fieldCageLength/2.);
-    G4LogicalVolume* logicFieldCage_CathodePCB = new G4LogicalVolume(solidFieldCage_CathodePCB, matPCB, "fieldCage_CathodePCB");
+    logicFieldCage_SideWall -> SetVisAttributes(greenColor);
     logicFieldCage_CathodePCB -> SetVisAttributes(greenColor);
-    auto pvpFieldCage_CathodePCB = new G4PVPlacement(new G4RotationMatrix(0., 0., 0.), G4ThreeVector(0., -fieldCage_shiftZ+fieldCageHeight/2., 0.), logicFieldCage_CathodePCB, "fieldCage_CathodePCB", logicChamber, false, 8, true);
-
-    // FieldCage Downstream PCB
-    const double fieldCage_downstream_emptySizeX = 170.*mm;
-    const double fieldCage_downstream_emptySizeY = 130.*mm;
-    G4Box* solidFieldCage_DownStreamPCB_base = new G4Box("fieldCage_downstreamPCB_base", fieldCageLength/2., fieldCageHeight/2., fieldCagePCB_Thickness/2.);
-    G4Box* solidFieldCage_DownStreamPCB_subt = new G4Box("fieldCage_downstreamPCB_subt", fieldCage_downstream_emptySizeX/2., fieldCage_downstream_emptySizeY/2., fieldCagePCB_Thickness/2+1.*mm);
-    G4VSolid* SolidFieldCage_DownStreamPCB = new G4SubtractionSolid("fieldCage_downstreamPCB", solidFieldCage_DownStreamPCB_base, solidFieldCage_DownStreamPCB_subt, 0,  G4ThreeVector(0,0,0));
-
-    G4LogicalVolume* logicFieldCage_DownStreamPCB = new G4LogicalVolume(SolidFieldCage_DownStreamPCB, matPCB, "fieldCage_downstreamPCB");
     logicFieldCage_DownStreamPCB -> SetVisAttributes(greenColor);
-    auto pvpFieldCage_DownStreamtPCB = new G4PVPlacement(new G4RotationMatrix(0., 0., 0.), G4ThreeVector(0., -fieldCage_shiftZ, (1+fieldCageLength/2.)*mm), logicFieldCage_DownStreamPCB, "fieldCage_downstreamPCB", logicChamber, false, 9, true);
-    
-    // FieldCage Upstream PCB
-    const double fieldCage_downstream_WindowSize = 50.*mm;
-    const double fieldCage_downstream_WindowHeight = 107.*mm;
-    G4Box* solidFieldCage_UpStreamPCB_base = new G4Box("fieldCage_UpstreamPCB_base", fieldCageLength/2., fieldCageHeight/2., fieldCagePCB_Thickness/2.);
-    G4Box* solidFieldCage_UpStreamPCB_subt = new G4Box("fieldCage_UpstreamPCB_subt", fieldCage_downstream_WindowSize/2., fieldCage_downstream_WindowSize/2., fieldCagePCB_Thickness/2.+1.*mm);
-    G4VSolid* SolidFieldCage_UpStreamPCB = new G4SubtractionSolid("fieldCage_UpstreamPCB", solidFieldCage_UpStreamPCB_base, solidFieldCage_UpStreamPCB_subt, 0,  G4ThreeVector(0,32.*mm,0));
-
-    G4LogicalVolume* logicFieldCage_UpStreamPCB = new G4LogicalVolume(SolidFieldCage_UpStreamPCB, matPCB, "fieldCage_UpstreamPCB");
     logicFieldCage_UpStreamPCB -> SetVisAttributes(greenColor);
-    auto pvpFieldCage_UpStreamtPCB = new G4PVPlacement(new G4RotationMatrix(0., 0., 0.), G4ThreeVector(0., -fieldCage_shiftZ, -(1+fieldCageLength/2.)*mm), logicFieldCage_UpStreamPCB, "fieldCage_UpstreamPCB", logicChamber, false, 10, true);
+
+    auto pvpFieldCage_LeftPCB = new G4PVPlacement(new G4RotationMatrix(0., 0., 0.), G4ThreeVector((1+fFieldCageLength/2.)*mm, -fieldCage_shiftZ, 0.), logicFieldCage_SideWall, "fieldCage_leftPCB", logicChamber, false, 6, true);
+    auto pvpFieldCage_RightPCB = new G4PVPlacement(new G4RotationMatrix(0., 0., 0.), G4ThreeVector(-(1+fFieldCageLength/2.)*mm, -fieldCage_shiftZ, 0.), logicFieldCage_SideWall, "fieldCage_RightPCB", logicChamber, false, 7, true);
+    auto pvpFieldCage_CathodePCB = new G4PVPlacement(new G4RotationMatrix(0., 0., 0.), G4ThreeVector(0., -fieldCage_shiftZ+fFieldCageHeight/2., 0.), logicFieldCage_CathodePCB, "fieldCage_CathodePCB", logicChamber, false, 8, true);
+    auto pvpFieldCage_DownStreamtPCB = new G4PVPlacement(new G4RotationMatrix(0., 0., 0.), G4ThreeVector(0., -fieldCage_shiftZ, (1+fFieldCageLength/2.)*mm), logicFieldCage_DownStreamPCB, "fieldCage_downstreamPCB", logicChamber, false, 9, true);
+    auto pvpFieldCage_UpStreamtPCB = new G4PVPlacement(new G4RotationMatrix(0., 0., 0.), G4ThreeVector(0., -fieldCage_shiftZ, -(1+fFieldCageLength/2.)*mm), logicFieldCage_UpStreamPCB, "fieldCage_UpstreamPCB", logicChamber, false, 10, true);
 
 
     // ========================== Gating Grid ======================================
     if(fPar->CheckPar("TPCDrum/GatingGrid")){
         if(fPar->GetParBool("TPCDrum/GatingGrid")){
-            const double GatingGrid_Supporter_Width = 20.*mm;
-            const double GatingGrid_Width = 20.*mm;
-            const double GatingGrid_AcitveArea_Width = fieldCageLength/2.-GatingGrid_Supporter_Width-GatingGrid_Width/2.-fieldCagePCB_Thickness;
-            const double GatingGrid_emptyArea_Center = GatingGrid_AcitveArea_Width/2.+GatingGrid_Width/2.+fieldCagePCB_Thickness;
-            G4Box* solidGatingGrid_base = new G4Box("gatingGrid_base", fieldCageLength/2., fieldCagePCB_Thickness/2., fieldCageLength/2.);
-            G4Box* solidGatingGrid_subtEmptyActive = new G4Box("gatingGrid_subtEmptyActive", GatingGrid_AcitveArea_Width/2., fieldCagePCB_Thickness/2.+1.*mm, (fieldCageLength-2*GatingGrid_Supporter_Width)/2.);
-            G4Box* solidGatingGrid_subtEmptyCenter = new G4Box("GatingGrid_subtEmptyCenter", GatingGrid_Width/2., fieldCagePCB_Thickness/2.+1.*mm, (fieldCageLength-2*GatingGrid_Supporter_Width)/2.);
-            G4VSolid* SolidGatingGrid_subtRight = new G4SubtractionSolid("GatingGrid_tmp", solidGatingGrid_base, solidGatingGrid_subtEmptyActive, 0,  G4ThreeVector(GatingGrid_emptyArea_Center,0,0));
-            G4VSolid* SolidGatingGrid_subtLeft = new G4SubtractionSolid("GatingGrid_tmp", SolidGatingGrid_subtRight, solidGatingGrid_subtEmptyActive, 0,  G4ThreeVector(-GatingGrid_emptyArea_Center,0,0));
-            G4VSolid* SolidGatingGrid = new G4SubtractionSolid("GatingGrid_tmp", SolidGatingGrid_subtLeft, solidGatingGrid_subtEmptyCenter, 0,  G4ThreeVector(0,0,0));
-
-            G4LogicalVolume* logicGatingGrid = new G4LogicalVolume(SolidGatingGrid, matPCB, "GatingGrid");
+            G4LogicalVolume* logicGatingGrid = GetGatingGrid();
             logicGatingGrid -> SetVisAttributes(GetColor("GREEN",0.4));
             auto pvpFieldCage_UpStreamtPCB = new G4PVPlacement(new G4RotationMatrix(0., 0., 0.), G4ThreeVector(0., -fieldCage_shiftZ, 0.), logicGatingGrid, "GatingGrid", logicChamber, false, 11, true);
         }
@@ -167,9 +102,98 @@ G4VPhysicalVolume* TPCDrumConstruction::Construct()
     return physWorld;
 }
 
-G4LogicalVolume* TPCDrumConstruction::GetGatingGridSolid()
+G4LogicalVolume* TPCDrumConstruction::GetWorld()
 {
-    return 0;
+    G4Box* solidWorld = new G4Box("World", fWorldX*fHalfUnit, fWorldY*fHalfUnit, fWorldZ*fHalfUnit);
+    return new G4LogicalVolume(solidWorld, GetGasMaterial("AIR"), "World");
+}
+
+G4LogicalVolume* TPCDrumConstruction::GetTPCDrumChamber()
+{
+    G4Tubs* solidChamber = new G4Tubs("chamber", 0., fChamberR*fHalfUnit, fChamberHeight*fHalfUnit, 0., 360*deg);
+    G4Tubs* solidFlange_Beamline = new G4Tubs("flange_beamline", 0., fFlangeR*fHalfUnit, fBeamLineLength*fHalfUnit, 0., 360*deg);
+    G4UnionSolid* detector = new G4UnionSolid("TPCDrum", solidFlange_Beamline, solidChamber, new G4RotationMatrix(0., CLHEP::pi/2, 0.), G4ThreeVector(0., 0., 0.));
+    return new G4LogicalVolume(detector, GetGasMaterial("HE4_CO2"), "TPCDrum");
+}
+
+G4LogicalVolume* TPCDrumConstruction::GetBeamWindow()
+{
+    double windowThickness = fPar -> GetParDouble("TPCDrum/WindowThickness") * mm;
+    G4Tubs* solidWindow = new G4Tubs("ChamberWindow", 0., fFlangeR*fHalfUnit, windowThickness*fHalfUnit, 0., 360*deg);
+    return new G4LogicalVolume(solidWindow, GetSolidMaterial(fPar -> GetParString("TPCDrum/WindowMaterial")), "ChamberWindow");;
+}
+
+G4LogicalVolume* TPCDrumConstruction::GetReadoutPCB()
+{
+    G4Tubs* solidReadoutPCB = new G4Tubs("ReadOutPCB", 0., fReadoutPCBR*fHalfUnit, fReadoutPCBThickness*fHalfUnit, 0., 360*deg);
+    return new G4LogicalVolume(solidReadoutPCB, GetSolidMaterial("PCB"), "ReadOutPCB");
+}
+
+G4LogicalVolume* TPCDrumConstruction::GetReadoutPadPlane()
+{
+    STDPadPlane padplane;
+    double padGap = padplane.GetPadGap();
+    double padHeight = padplane.GetPadHeight();
+    double type1PadWidth = padplane.GetType1PadWidth();
+    double type2PadWidth = padplane.GetType2PadWidth();
+
+    double layerNum = padplane.GetLayerNum();
+    double rowNum = padplane.GetRowNum();
+    double type1PadNum = padplane.GetType1PadNum();
+    double type2PadNum = padplane.GetType2PadNum();
+
+    double activePadPlaneWidth = type1PadNum*(type1PadWidth+padGap) + type2PadNum*(type2PadWidth+padGap);
+    double activePadPlaneHeight = layerNum*(padHeight+padGap);
+
+    G4Box* solidReadoutPad = new G4Box("ReadOutPad", activePadPlaneWidth*fHalfUnit, fReadoutPCBThickness*fHalfUnit, activePadPlaneHeight*fHalfUnit);
+    return new G4LogicalVolume(solidReadoutPad, GetSolidMaterial("PCB"), "ReadOutPad");
+}
+
+G4LogicalVolume* TPCDrumConstruction::GetFieldCageSideWall()
+{
+    G4Box* solidFieldCage_Side = new G4Box("solidFieldCage_Side", fPCBThickness*fHalfUnit, fFieldCageHeight*fHalfUnit, fFieldCageLength*fHalfUnit);
+    return new G4LogicalVolume(solidFieldCage_Side, GetSolidMaterial("PCB"), "solidFieldCage_Side");
+}
+
+G4LogicalVolume* TPCDrumConstruction::GetFieldCageCathode()
+{
+    G4Box* solidFieldCage_Cathode = new G4Box("fieldCage_CathodePCB", fFieldCageLength*fHalfUnit, fPCBThickness*fHalfUnit, fFieldCageLength*fHalfUnit);
+    return new G4LogicalVolume(solidFieldCage_Cathode, GetSolidMaterial("PCB"), "fieldCage_CathodePCB");
+}
+
+G4LogicalVolume* TPCDrumConstruction::GetFieldCageDownStream()
+{
+    const double fieldCage_downstream_emptySizeX = 170. *mm;
+    const double fieldCage_downstream_emptySizeY = 130. *mm;
+
+    G4Box* solidFieldCage_DownStreamPCB_base = new G4Box("fieldCage_downstreamPCB_base", fFieldCageLength*fHalfUnit, fFieldCageHeight*fHalfUnit, fPCBThickness*fHalfUnit);
+    G4Box* solidFieldCage_DownStreamPCB_subt = new G4Box("fieldCage_downstreamPCB_subt", fieldCage_downstream_emptySizeX*fHalfUnit, fieldCage_downstream_emptySizeY*fHalfUnit, fPCBThickness*fHalfUnit + 1.*mm);
+    G4VSolid* SolidFieldCage_DownStreamPCB = new G4SubtractionSolid("fieldCage_downstreamPCB", solidFieldCage_DownStreamPCB_base, solidFieldCage_DownStreamPCB_subt, 0,  G4ThreeVector(0,0,0));
+    return new G4LogicalVolume(SolidFieldCage_DownStreamPCB, GetSolidMaterial("PCB"), "fieldCage_downstreamPCB");
+}
+
+G4LogicalVolume* TPCDrumConstruction::GetFieldCageUpStream()
+{
+    const double fieldCage_downstream_WindowSize = 50. *mm;
+    const double fieldCage_downstream_WindowHeight = 107. *mm;
+    G4Box* solidFieldCage_UpStreamPCB_base = new G4Box("fieldCage_UpstreamPCB_base", fFieldCageLength*fHalfUnit, fFieldCageHeight*fHalfUnit, fPCBThickness*fHalfUnit);
+    G4Box* solidFieldCage_UpStreamPCB_subt = new G4Box("fieldCage_UpstreamPCB_subt", fieldCage_downstream_WindowSize*fHalfUnit, fieldCage_downstream_WindowSize*fHalfUnit, fPCBThickness*fHalfUnit + 1.*mm);
+    G4VSolid* SolidFieldCage_UpStreamPCB = new G4SubtractionSolid("fieldCage_UpstreamPCB", solidFieldCage_UpStreamPCB_base, solidFieldCage_UpStreamPCB_subt, 0,  G4ThreeVector(0, fieldCage_downstream_WindowHeight - fFieldCageHeight*fHalfUnit, 0));
+    return new G4LogicalVolume(SolidFieldCage_UpStreamPCB, GetSolidMaterial("PCB"), "fieldCage_UpstreamPCB");
+}
+
+G4LogicalVolume* TPCDrumConstruction::GetGatingGrid()
+{
+    const double GatingGridAcitveAreaWidth = fFieldCageLength*fHalfUnit - fGatingGridSupporterWidth - fGatingGridActiveWidth*fHalfUnit - fGatingGridActivePCBWidth;
+    const double GatingGridEmptyAreaCenter = GatingGridAcitveAreaWidth*fHalfUnit + fGatingGridActiveWidth*fHalfUnit + fGatingGridActivePCBWidth;
+
+    G4Box* solidGatingGrid_base = new G4Box("gatingGrid_base", fFieldCageLength*fHalfUnit, fPCBThickness*fHalfUnit, fFieldCageLength*fHalfUnit);
+    G4Box* solidGatingGrid_subtEmptyActive = new G4Box("gatingGrid_subtEmptyActive", GatingGridAcitveAreaWidth*fHalfUnit, fPCBThickness*fHalfUnit + 1.*mm, (fFieldCageLength - 2*fGatingGridSupporterWidth)*fHalfUnit);
+    G4Box* solidGatingGrid_subtEmptyCenter = new G4Box("GatingGrid_subtEmptyCenter", fGatingGridActiveWidth*fHalfUnit, fPCBThickness*fHalfUnit + 1.*mm, (fFieldCageLength - 2*fGatingGridSupporterWidth)*fHalfUnit);
+    G4VSolid* SolidGatingGrid_subtRight = new G4SubtractionSolid("GatingGrid_tmp", solidGatingGrid_base, solidGatingGrid_subtEmptyActive, 0,  G4ThreeVector(GatingGridEmptyAreaCenter, 0, 0));
+    G4VSolid* SolidGatingGrid_subtLeft = new G4SubtractionSolid("GatingGrid_tmp", SolidGatingGrid_subtRight, solidGatingGrid_subtEmptyActive, 0,  G4ThreeVector(-GatingGridEmptyAreaCenter, 0, 0));
+    G4VSolid* SolidGatingGrid = new G4SubtractionSolid("GatingGrid_tmp", SolidGatingGrid_subtLeft, solidGatingGrid_subtEmptyCenter, 0,  G4ThreeVector(0, 0, 0));
+    return new G4LogicalVolume(SolidGatingGrid, GetSolidMaterial("PCB"), "GatingGrid");
 }
 
 G4LogicalVolume* TPCDrumConstruction::GetSiDetector(TString name)
