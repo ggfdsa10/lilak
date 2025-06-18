@@ -117,7 +117,7 @@ void LKParameter::SetPar(TString name, TString raw, TString value, TString comme
         fCompare = compare;
 
     //int iSlash = fName.Index("/");
-    int iSlash = fName.First('/');
+    int iSlash = fName.Last('/');
     if (iSlash>=0) {
         fGroup    = fName(0,iSlash);
         fMainName = fName(iSlash+1,fName.Sizeof()-iSlash-2);
@@ -633,6 +633,17 @@ TString LKParameter::GetFirstName() const
     }
     return firstName;
 }
+
+TString LKParameter::GetFirstName() const
+{
+    TString firstName = fName;
+    int iSlash = fName.First('/');
+    if (iSlash>=0) {
+        firstName = fName(iSlash+1,fName.Sizeof()-iSlash-2);
+    }
+    return firstName;Add commentMore actions
+}
+Add comment
 
 TString LKParameter::GetGroup(int ith) const
 {
