@@ -1,7 +1,7 @@
 Beam
  Particle = 4He
  ExcitationEnergy = 0 MeV
- Energy = 1 GeV
+ Energy = 20 MeV
  SigmaEnergy = 0.0 MeV
  SigmaThetaX = 0.000 rad
  SigmaPhiY = 0.000 rad
