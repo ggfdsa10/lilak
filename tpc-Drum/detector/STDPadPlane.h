@@ -48,12 +48,24 @@ class STDPadPlane : public LKDetectorPlane
         Double_t GetY(int padID);
         Double_t GetY(int layer, int row);
 
-
         Int_t GetFPNChannelID(int chan);
 
         Int_t GetAsAdNum();
         Int_t GetAGETNum();
         Int_t GetChanNum();
+
+        Int_t GetLayerNum();
+        Int_t GetRowNum();
+
+        Int_t GetType1PadNum();
+        Int_t GetType1LeftPadNum();
+        Int_t GetType1RightPadNum();
+        Int_t GetType2PadNum();
+
+        Double_t GetPadHeight();
+        Double_t GetType1PadWidth();
+        Double_t GetType2PadWidth();
+        Double_t GetPadGap();
 
         TH2Poly* GetPadPlanePoly();
 

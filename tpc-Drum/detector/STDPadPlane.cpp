@@ -94,6 +94,19 @@ Int_t STDPadPlane::GetAsAdNum(){return fAsAdNum;}
 Int_t STDPadPlane::GetAGETNum(){return fAGETNum;}
 Int_t STDPadPlane::GetChanNum(){return fChanNum;}
 
+Int_t STDPadPlane::GetLayerNum(){return fLayerNum;}
+Int_t STDPadPlane::GetRowNum(){return fRowNum;}
+
+Int_t STDPadPlane::GetType1PadNum(){return GetType1LeftPadNum()+GetType1RightPadNum();}
+Int_t STDPadPlane::GetType1LeftPadNum(){return fLeftType1PadNum;}
+Int_t STDPadPlane::GetType1RightPadNum(){return fRightType1PadNum;}
+Int_t STDPadPlane::GetType2PadNum(){return fType2PadNum;}
+
+Double_t STDPadPlane::GetPadHeight(){return fPadHeight;}
+Double_t STDPadPlane::GetType1PadWidth(){return fType1PadWidth;}
+Double_t STDPadPlane::GetType2PadWidth(){return fType2PadWidth;}
+Double_t STDPadPlane::GetPadGap(){return fPadGap;}
+
 TH2Poly* STDPadPlane::GetPadPlanePoly(){return fPadPlanePoly;}
 
 TH2* STDPadPlane::GetHist(Option_t *option)
