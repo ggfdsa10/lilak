@@ -1,0 +1,81 @@
+LKG4Manager/
+    VisMode 1
+    NPToolMode true
+    G4OutputFile mc.root
+    SuppressG4InitMessage true
+
+NPTool/
+    ReactionFile Ne20_3alpha.reaction
+    #ReactionFile SingleAlpha.reaction
+
+TPCDrum/
+    GasPressure 760. #asasdf [torr]
+    GasContourMixRatio 10. # [%] for contour gas
+    WindowMaterial Havar # [Havar, etc..]
+    WindowThickness 0.01 # [mm]
+    GatingGrid true
+
+TriggerAction/
+    AddModuleFile input_triggerModule_file
+
+    Detector/
+        Si/
+            EnergyThreshold 0 2 4 # MeV
+
+        detectorName/
+            ChannelThreshold 10 15 20 # number of channel
+            EnergyThreshold 0 2 4 # MeV
+
+    TriggerModule/
+        triggerName/
+
+            Condition/ConditionName Si/LU Energy:0 MUST
+            Condition/ConditionName1 Si/LU Energy:1 VETO
+            Condition/ConditionName2 Si/LU Channel:3 
+            Condition/ConditionName2 Si/LU ChannelID:3 MUST 
+
+            Logic1 Si/LU OR Si/LM
+            Logic2 6001 AND LM
+
+            Logic4 Si/LD ALL
+            Logic5 Si/LD VETO
+            Logic6 Si MUST
+            Logic7 Si 
+
+            Logic7 ConditionName
+            Logic8 ConditionName2 AND detectorName
+
+            Logic9 Logic3 and Logic4
+
+    MasterLogic/
+        Logic1 triggerName AND triggerName1
+        
+
+
+persistency/
+    MCTrackVertex true
+    MCSecondary true
+    MCEdepSum false
+    MCStep true
+
+G4/
+    vis/open OGL 600x600-0+0
+    vis/scene/add/axes 0 0 0 100 mm
+    vis/drawVolume
+    vis/viewer/flush
+    vis/viewer/set/lightsVector -1 0 0
+    vis/viewer/set/style surface
+    vis/viewer/set/auxiliaryEdge true
+    vis/viewer/set/lineSegmentsPerCircle 100
+    vis/scene/add/trajectories smooth
+    vis/modeling/trajectories/create/drawByCharge
+    vis/modeling/trajectories/drawByCharge-0/default/setDrawStepPts true
+    vis/modeling/trajectories/drawByCharge-0/default/setStepPtsSize 2
+    vis/scene/endOfEventAction accumulate 10
+    vis/geometry/set/visibility World 0 false
+    vis/viewer/set/viewpointThetaPhi 100 160
+    vis/viewer/set/autoRefresh true
+    tracking/verbose 0
+    vis/verbose warnings
+    run/setCutForAGivenParticle e- 100. mm
+    run/beamOn 5
