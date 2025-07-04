@@ -16,5 +16,13 @@ STDEventAction::STDEventAction(LKG4RunManager *man)
 
 void STDEventAction::EndOfEventAction(const G4Event*)
 {
-    fRunManager -> NextEvent();
+    fTriggerAction = (STDTriggerAction*)LKG4RunManager::GetRunManager() -> GetUserRunAction();
+    bool isFire = fTriggerAction -> IsTriggeredEvent();
+
+    if(isFire){
+        fRunManager -> NextEvent();
+    }
+    else{
+        fRunManager -> ClearEvent();
+    }
 }

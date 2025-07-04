@@ -56,7 +56,17 @@ void STDTriggerAction::SetStep(int copyNo, int trackID, bool firstFlag, double x
 
 bool STDTriggerAction::IsTriggeredEvent()
 {
+    int detNum = fTrigDetector.size();
 
+    for(int det=0; det<detNum; det++){
+        double de = 0.;
+        for(int i=0; i<fTrigDetector[detIdx].GetSize(); i++){
+            double edep = fTrigDetector[detIdx].edep[i];
+            de += edep;
+        }
+        if(de > 0.1){return true;}
+    }
+    return false;
 }
 
 void STDTriggerAction::InitTriggerSetup()

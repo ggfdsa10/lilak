@@ -4,6 +4,7 @@
 #include "LKG4RunManager.h"
 #include "G4UserEventAction.hh"
 #include "G4Event.hh"
+#include "STDTriggerAction.h"
 
 class STDEventAction : public G4UserEventAction
 {
@@ -16,6 +17,8 @@ class STDEventAction : public G4UserEventAction
 
     private:
         LKG4RunManager *fRunManager = nullptr;
+
+        STDTriggerAction* fTriggerAction = nullptr;
 };
 
 #endif

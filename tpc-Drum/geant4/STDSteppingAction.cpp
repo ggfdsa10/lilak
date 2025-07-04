@@ -26,9 +26,12 @@ void STDSteppingAction::UserSteppingAction(const G4Step* step)
         // cout << preNo << " " << endl;
         
         bool isFirstStep = step -> IsFirstStepInVolume();
+        G4int trackID = step -> GetTrack() -> GetTrackID();
         G4ThreeVector stepPos = .5 * (step -> GetPreStepPoint() -> GetPosition() + step -> GetPostStepPoint() -> GetPosition());
         G4double edep = step -> GetTotalEnergyDeposit(); 
 
+        fTriggerAction = (STDTriggerAction*)LKG4RunManager::GetRunManager() -> GetUserRunAction();
+        fTriggerAction -> SetStep(preNo, trackID, isFirstStep, stepPos.x(), stepPos.y(), stepPos.z(), edep);
     }
 
     LKSteppingAction::UserSteppingAction(step);

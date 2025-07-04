@@ -8,6 +8,7 @@
 #include "LKSteppingAction.h"
 #include "G4Step.hh"
 #include "globals.hh"
+#include "STDTriggerAction.h"
 
 class STDSteppingAction : public LKSteppingAction
 {
@@ -21,6 +22,8 @@ class STDSteppingAction : public LKSteppingAction
     private:
         LKG4RunManager *fRunManager = nullptr;
         LKParameterContainer* fPar = nullptr;
+
+        STDTriggerAction* fTriggerAction = nullptr;
 };
 
 #endif
