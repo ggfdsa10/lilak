@@ -37,8 +37,9 @@ bool STDDecoder::Clear()
 
 void STDDecoder::Run(Long64_t numEvents)
 {
-   AddFiles();
-   if(fEventNum != -1){fEventIdx = fEventNum;}
+    AddFiles();
+
+    if(fEventNum != -1){fEventIdx = fEventNum;}
 
     for(int event=0; event<fEventIdx; event++){
         for(int asad=0; asad<fAsAdNum; asad++){
@@ -86,6 +87,8 @@ Int_t STDDecoder::AddFiles()
         fDecoder[asad].GoToEnd();
         fEventIdx = fDecoder[asad].GetNumFrames();
     }
+
+    return 1;
 }
 
 Int_t STDDecoder::FillData()
