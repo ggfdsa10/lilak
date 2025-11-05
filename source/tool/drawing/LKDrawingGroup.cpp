@@ -31,6 +31,22 @@ LKDrawingGroup::LKDrawingGroup(TFile* file, TString groupSelection)
     AddFile(file,groupSelection);
 }
 
+LKDrawingGroup::LKDrawingGroup(TObject* obj, TString drawStyle)
+: TObjArray()
+{
+    if (obj->InheritsFrom(TFile::Class())) {
+        Init();
+        AddFile((TFile*)obj,drawStyle);
+        return;
+    }
+
+    Init();
+    SetName(Form("%s",obj->GetName()));
+    Add(obj);
+    if (!drawStyle.IsNull())
+        SetStyle(drawStyle);
+}
+
 void LKDrawingGroup::Init()
 {
     fName = "DrawingGroup";
@@ -52,33 +68,34 @@ void LKDrawingGroup::Draw(Option_t *option)
     TString optionString(option);
     optionString.ToLower();
 
+    auto numDrawings = GetEntries();
+
+
     bool usingDataViewer = false;
     if (fViewer!=nullptr)
         usingDataViewer = true;
     if (usingDataViewer==false)
-        usingDataViewer = (LKMisc::CheckOption(optionString,"v",true) || LKMisc::CheckOption(optionString,"viewer",true));
+        usingDataViewer = LKMisc::CheckOption(optionString,"viewer # (dg) draw using LKDataViewer",true);
 
+
+    bool drawGroup = true;
     if (usingDataViewer)
     {
-        //if (IsDrawingGroup()) {
-        //    lk_debug << "innnnnnnnnn" << endl;
-        //    auto top = new LKDataViewer("top");
-        //    top -> AddGroup(this);
-        //    top -> Draw(optionString+":v");
-        //    return;
-        //}
-
-        if (fViewer==nullptr)
+        drawGroup = false;
+        if (fViewer==nullptr) {
             fViewer = new LKDataViewer(this);
+            fViewer -> Draw(optionString);
+        }
 
         if (fViewer->IsActive())
             lk_warning << "viewer already running!" << endl;
         else
-            fViewer -> Draw(optionString);
+            drawGroup = true;
     }
-    else
+
+    if (drawGroup)
     {
-        if (CheckIsGroupGroup() && optionString=="all")
+        if (CheckIsGroupGroup())
         {
             auto numSub = GetEntries();
             for (auto iSub=0; iSub<numSub; ++iSub) {
@@ -89,7 +106,6 @@ void LKDrawingGroup::Draw(Option_t *option)
         }
         else
         {
-            auto numDrawings = GetEntries();
             if (numDrawings>0)
             {
                 ConfigureCanvas();
@@ -107,7 +123,27 @@ void LKDrawingGroup::Draw(Option_t *option)
                     }
                 }
             }
-            //fCvs -> SetWindowSize(800,800);
+        }
+    }
+}
+
+void LKDrawingGroup::Update(TString option)
+{
+    if (CheckIsGroupGroup())
+    {
+        auto numSub = GetEntries();
+        for (auto iSub=0; iSub<numSub; ++iSub) {
+            auto sub = (LKDrawingGroup*) At(iSub);
+            sub -> Update(option);
+        }
+    }
+    else
+    {
+        auto numDrawings = GetEntries();
+        for (auto iDrawing=0; iDrawing<numDrawings; ++iDrawing)
+        {
+            auto drawing = (LKDrawing*) At(iDrawing);
+            drawing -> Update(option);
         }
     }
 }
@@ -126,7 +162,7 @@ void LKDrawingGroup::WriteFile(TString fileName, TString option)
         lk_info << "Writting" << endl;
         e_cout << "    " << fileName << endl;
         auto file = new TFile(fileName,"recreate");
-        Write(".flat");
+        Write("flat");
     }
     else {
         if (fileName.IsNull())
@@ -141,7 +177,7 @@ void LKDrawingGroup::WriteFile(TString fileName, TString option)
 Int_t LKDrawingGroup::Write(const char *name, Int_t option, Int_t bsize) const
 {
     TString name0 = TString(name);
-    bool flat = LKMisc::CheckOption(name0,".flat");
+    bool flat = (name0=="flat");
     bool write_only_fit = LKMisc::CheckOption(name0,"FITPARAMETERS");
     int countDrawings = LKMisc::FindOptionInt(name0,"draw_count",0);
     int countDrawingsLocal = 0;
@@ -731,10 +767,59 @@ TString LKDrawingGroup::GetFullName() const
 
 void LKDrawingGroup::Add(TObject *obj)
 {
-    if (obj->InheritsFrom(TH1::Class())) { AddHist((TH1*) obj); return; }
-    if (obj->InheritsFrom(TGraph::Class())) { AddGraph((TGraph*) obj); return; }
-    if (obj->InheritsFrom(LKDrawing::Class()) || obj->InheritsFrom(LKDrawingGroup::Class()))
-        TObjArray::Add(obj);
+    auto IsMotherPad = [](TPad* pad)
+    {
+        bool isMotherPad = false;
+        auto list = pad -> GetListOfPrimitives();
+        TIter next(list);
+        TObject *objIn;
+        while ((objIn = next()))
+        {
+            if (objIn->InheritsFrom(TPad::Class())) {
+                isMotherPad = true;
+                break;
+            }
+        }
+        return isMotherPad;
+    };
+
+    if      (obj->InheritsFrom(TH1::Class())) { AddHist((TH1*) obj); return; }
+    else if (obj->InheritsFrom(TGraph::Class())) { AddGraph((TGraph*) obj); return; }
+    else if (obj->InheritsFrom(LKDrawing::Class()) || obj->InheritsFrom(LKDrawingGroup::Class())) TObjArray::Add(obj);
+    else if (obj->InheritsFrom(TPad::Class()))
+    {
+        auto pad = (TPad*) obj;
+        bool isMotherPad = IsMotherPad(pad);
+        SetCanvas(pad);
+
+        auto list = pad -> GetListOfPrimitives();
+        TIter next(list);
+        if (isMotherPad)
+        {
+            int countSubs = 0;
+            TObject *objIn;
+            while ((objIn = next()))
+            {
+                if (objIn->InheritsFrom(TPad::Class())) {
+                    if (IsMotherPad((TPad*)objIn)) {
+                        auto sub = CreateGroup(Form("%s_%d",fName.Data(),countSubs++));
+                        sub -> Add(objIn);
+                    }
+                    else {
+                        LKDrawing *draw = CreateDrawing(Form("draw_%s_%d",fName.Data(),countSubs++));
+                        draw -> Add(objIn);
+                    }
+                }
+                else
+                    lk_error << "not TPad" << endl;
+            }
+        }
+        else
+        {
+            LKDrawing *draw = CreateDrawing(Form("draw_%s",fName.Data()));
+            draw -> Add(pad);
+        }
+    }
     else
         lk_error << "Cannot add " << obj->ClassName() << " directly!" << endl;
 }
@@ -1249,6 +1334,27 @@ TObject* LKDrawingGroup::FindClassObject(TString name, TClass *tclass)
         }
     }
     return (TObject*) nullptr;
+}
+
+void LKDrawingGroup::ApplyStyle(TString drawStyle)
+{
+    if (CheckIsGroupGroup())
+    {
+        auto numSub = GetEntries();
+        for (auto iSub=0; iSub<numSub; ++iSub) {
+            auto sub = (LKDrawingGroup*) At(iSub);
+            sub -> ApplyStyle(drawStyle);
+        }
+    }
+    else
+    {
+        auto numDrawings = GetEntries();
+        for (auto iDrawing=0; iDrawing<numDrawings; ++iDrawing)
+        {
+            auto drawing = (LKDrawing*) At(iDrawing);
+            drawing -> ApplyStyle(drawStyle);
+        }
+    }
 }
 
 void LKDrawingGroup::SetStyle(TString drawStyle)
