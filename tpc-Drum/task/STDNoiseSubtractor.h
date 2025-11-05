@@ -28,7 +28,13 @@ class STDNoiseSubtractor : public LKTask
         void Exec(Option_t*);
         bool EndOfRun();
 
+        void DrawRawADCPad(){fOnDrawRawADC = true;}
+        void MakeNoiseShape(){fMakeNoiseShapeMode = true;}
+
     private:
+        void InitNoiseTemplateSaving();
+        void SaveNoiseTemplate();
+
         TPCDrum *fDetector = nullptr;
         STDPadPlane *fDetectorPlane = nullptr;
 
@@ -39,10 +45,22 @@ class STDNoiseSubtractor : public LKTask
         TH2D* fADCTemplate[ASADNUM];
         TProfile* fNoiseTemplate[ASADNUM];
 
-        TCanvas* cADC;
-        TCanvas* cADCAsad;
-        TH1D* hRawADC[ASADNUM][AGETNUM][CHANNUM];
-        TH1D* hSubADC[ASADNUM][AGETNUM][CHANNUM];
+        bool fMakeNoiseShapeMode;
+        TFile* fNoiseFile;
+        TTree* fNoiseTree;
+        Double_t fNoiseData[TIMEBUCKET];
+
+        bool fOnDrawRawADC;
+        TCanvas* cRawPad = nullptr;
+        TH2Poly* hBoundary = nullptr;
+        TH2Poly* hPolyADC_subt = nullptr;
+        TH2Poly* hPolyTime_subt = nullptr;
+        TH2D* hPolyTime_Y = nullptr;
+        TH2D* hTB_subt = nullptr;
+
+        TH1D* hTestTB;
+        TH1D* hTestRawTB;
+        TCanvas* cTestCanvas;
 
 
         int fTBStartIdx = 30;

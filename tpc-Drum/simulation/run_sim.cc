@@ -17,8 +17,6 @@
 
 // LILAK
 #include "TPCDrumConstruction.h"
-#include "STDTriggerAction.h"
-#include "STDSteppingAction.h"
 
 // NPTool
 #include "NPOptionManager.h"
@@ -53,9 +51,6 @@ int main(int argc, char** argv)
     PrimaryGeneratorAction* primary = new PrimaryGeneratorAction(detector);
     primary->ReadEventGeneratorFile(reactionFile.Data());
     runManager->SetUserAction(primary);
-
-    runManager->SetUserAction(new STDTriggerAction());
-    runManager->SetUserAction(new STDSteppingAction());
 
     runManager -> Run(argc, argv);
 

@@ -181,7 +181,9 @@ bool STDDriftElectronMaker::DriftElectron(double& x, double& y, double& z, doubl
 
 bool STDDriftElectronMaker::AvalancheElectron(double& x, double& y, double& z, double& t, double& w)
 {
-    double gain = fTuneManager -> GetGEMGainFactor(x, y, z);
+    double extraGainFactor = 1.; // for beamline
+    if(-10. <= x && x <= 10.){extraGainFactor = 0.5;}
+    double gain = fTuneManager -> GetGEMGainFactor(x, y, z) * extraGainFactor;
     double sigmaT = fTuneManager -> GetGEMDiffusionT() * sqrt(z); // [mm]
     double sigmaL = fTuneManager -> GetGEMDiffusionL() * sqrt(z); // [mm]
     double velocityD = fTuneManager -> GetGEMDriftVelocity(); // [mm/ns]

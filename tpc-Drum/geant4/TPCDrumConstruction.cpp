@@ -21,7 +21,6 @@ G4VPhysicalVolume* TPCDrumConstruction::Construct()
     logicChamber -> SetVisAttributes(GetColor("WHITE"));
     auto pvpChamber = new G4PVPlacement(0, G4ThreeVector(0.,0.,0.), logicChamber, "TPCDrum", logicWorld, false, 1, true);
 
-
     // ========================== Chamber window material =============================
     double windowThickness = fPar -> GetParDouble("TPCDrum/WindowThickness") *mm;
     const double window_shiftBeamLine = (fTPCDrum->fBeamLineLength+windowThickness)*fHalfUnit *mm;

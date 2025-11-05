@@ -2,7 +2,8 @@ void makeSimData()
 {
     auto run = new LKRun();
     run -> AddDetector(new TPCDrum());
-    run -> SetInputFile("./simTest.root");
+    // run -> SetInputFile("./simTest.root");
+    run -> SetInputFile("./mc_direct_trigger_all.root");
 
     run -> Add(new STDDriftElectronMaker);
     run -> Add(new STDElectronicsMaker);
@@ -11,5 +12,5 @@ void makeSimData()
     run -> Add(new STDMCViewer);
 
     run -> Init();
-    run -> Run();
+    run -> Run(30);
 }

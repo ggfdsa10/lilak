@@ -42,7 +42,6 @@ bool STDRunManager::Run()
         }
     }
     else{
-        cout << fInputRun << endl;
         for(int run=0; run<fRunList.size(); run++){
             LKRun::AddInputFile(Form("./test_%i.root", fRunList[run].first));
         }

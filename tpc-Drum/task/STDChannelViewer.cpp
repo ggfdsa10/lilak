@@ -36,6 +36,7 @@ bool STDChannelViewer::Init()
     hHitNum = new TH1I("hHitNum","",50, 0, 50);
     hRowHitNum = new TH1I("hRowHitNum","",10, 0, 10);
     hSumADC = new TH1D("hHitNum","",100, 0, 25000);
+    hHitADC = new TH2D("hHitNum","", 50, 0, 50., 100, 0., 25000);
 
     outFile = new TFile("alphaTrkPar.root","recreate");
     outTree = new TTree("event", "event");
@@ -78,47 +79,48 @@ void STDChannelViewer::Exec(Option_t *option)
     if(hitNum > 0){
         hHitNum -> Fill(hitNum);
         hSumADC -> Fill(sumADC);
+        hHitADC -> Fill(hitNum, sumADC);
     }
 
-    for(int i=0; i<768; i++){
-        double x = fPadPlane -> GetX(i);
-        double y = fPadPlane -> GetY(i);
-        hPoly -> Fill(x, y, 1.);
-    }
+    // for(int i=0; i<768; i++){
+    //     double x = fPadPlane -> GetX(i);
+    //     double y = fPadPlane -> GetY(i);
+    //     hPoly -> Fill(x, y, 1.);
+    // }
 
-    hFitter -> SetParameters(0., 0.);
-    gCluster -> Set(0);
+    // hFitter -> SetParameters(0., 0.);
+    // gCluster -> Set(0);
 
-    double maxY = 0.;
-    for(int layer=0; layer<12; layer++){
-        double y = fPadPlane -> GetY(layer, 30);
-        double sumADC = 0.;
-        double weightedPos = 0.;
+    // double maxY = 0.;
+    // for(int layer=0; layer<12; layer++){
+    //     double y = fPadPlane -> GetY(layer, 30);
+    //     double sumADC = 0.;
+    //     double weightedPos = 0.;
 
-        int rowNum = 0;
-        for(int row=0; row<64; row++){
-            double x = fPadPlane -> GetX(layer, row);
-            double w = adc[layer][row];
-            if(w < 40.){continue;}
+    //     int rowNum = 0;
+    //     for(int row=0; row<64; row++){
+    //         double x = fPadPlane -> GetX(layer, row);
+    //         double w = adc[layer][row];
+    //         if(w < 40.){continue;}
 
-            weightedPos += (w*x);
-            sumADC += w;
-            rowNum++;
-        }
-        weightedPos /= sumADC;
+    //         weightedPos += (w*x);
+    //         sumADC += w;
+    //         rowNum++;
+    //     }
+    //     weightedPos /= sumADC;
 
-        if(rowNum > 0){hRowHitNum -> Fill(rowNum);}
+    //     if(rowNum > 0){hRowHitNum -> Fill(rowNum);}
 
-        if(rowNum < 2){continue;}
-        gCluster -> SetPoint(gCluster->GetN(), weightedPos, y);
-        if(maxY < y){maxY = y;}
-    }
+    //     if(rowNum < 2){continue;}
+    //     gCluster -> SetPoint(gCluster->GetN(), weightedPos, y);
+    //     if(maxY < y){maxY = y;}
+    // }
 
 
     // event viwer 
-    memset(fit, 0, sizeof(fit));
-    if(gCluster->GetN() < 3){return;}
-    gCluster -> Fit(hFitter, "Q");
+    // memset(fit, 0, sizeof(fit));
+    // if(gCluster->GetN() < 3){return;}
+    // gCluster -> Fit(hFitter, "Q");
 
     // cout << hFitter->GetChisquare() << endl;
 
@@ -128,11 +130,12 @@ void STDChannelViewer::Exec(Option_t *option)
     // fit[2] = maxY;
     // outTree -> Fill();
 
+    if(hitNum < 6 || sumADC < 10000.){return;}
 
     cEvent -> cd();
     hBoundary -> Draw("");
     hPoly -> Draw("colz, same");
-    gCluster -> Draw("same, p");
+    // gCluster -> Draw("same, p");
     cEvent -> Update();
     cEvent -> SaveAs(Form("./figure/Event%i.pdf", int(fRun -> GetCurrentEventID()) ));
 }
@@ -153,9 +156,9 @@ bool STDChannelViewer::EndOfRun()
     hSumADC -> Draw();
 
     c1 -> cd(3);
-    hRowHitNum -> SetStats(0);
-    hRowHitNum -> SetTitle("; Row Hit num; Counts");
-    hRowHitNum -> Draw();
+    hHitADC -> SetStats(0);
+    hHitADC -> SetTitle("; Row Hit num; Counts");
+    hHitADC -> Draw("colz");
 
     c1 -> Draw();
     c1 -> SaveAs("./alphaSummary.pdf");

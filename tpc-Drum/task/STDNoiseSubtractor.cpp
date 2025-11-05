@@ -3,6 +3,7 @@
 ClassImp(STDNoiseSubtractor);
 
 STDNoiseSubtractor::STDNoiseSubtractor()
+: fMakeNoiseShapeMode(false), fOnDrawRawADC(false)
 {
     fName = "STDNoiseSubtractor";
 }
@@ -18,34 +19,68 @@ bool STDNoiseSubtractor::Init()
         fADCTemplate[asad] = new TH2D(Form("asad_%i", asad), "", 512, 0, 512, 2000, 0., 2000.);
     }
 
+    if(fMakeNoiseShapeMode){
+        TString currentPath = gSystem -> pwd();
+        int projectPathIndex = currentPath.Index("tpc-Drum/");
+        currentPath.Remove(projectPathIndex);
+        TString noiseDataPath = currentPath + "tpc-Drum/common/";
 
-    // test
-    cADC = new TCanvas("cADC", "cADC", 600, 600);
-    cADCAsad = new TCanvas("cADCasad","cADCasad", 1200,1200);
-    cADCAsad -> Divide(2,2); 
-    for(int asad=0; asad<4; asad++){
-        for(int aget=0; aget<4; aget++){
-            for(int chan=0; chan<68; chan++){
-                hRawADC[asad][aget][chan] = new TH1D(Form("rawADC_%i_%i_%i", asad, aget, chan), "", 512, 0, 512);
-                hRawADC[asad][aget][chan] -> SetLineColor(kBlue);
-                hRawADC[asad][aget][chan] -> GetYaxis()->SetRangeUser(-50., 1000.);
-                hSubADC[asad][aget][chan] = new TH1D(Form("subADC_%i_%i_%i", asad, aget, chan), "", 512, 0, 512);
-                hSubADC[asad][aget][chan] -> SetLineColor(kRed);
-                hSubADC[asad][aget][chan] -> GetYaxis()->SetRangeUser(-50., 3000.);
-            }
-        }
+        TString noiseDataName = Form("%sNoise_template.root", noiseDataPath.Data());
+        fNoiseFile = new TFile(noiseDataName, "recreate");
+        fNoiseTree = new TTree("event", "event");
+        fNoiseTree -> Branch("Noise", fNoiseData, Form("Noise[%i]/D", TIMEBUCKET));
     }
 
+    if(fOnDrawRawADC){
+        cout << "STDNoiseSubtractor::Init() -- " << "Drawing mode ON "<< endl;
+        double x[4] = {-100., -100., 100., 100.};
+        double y[4] = {-34., 166., 166., -34.};
+
+        hBoundary = new TH2Poly();
+        hBoundary -> SetStats(0);
+        hBoundary -> SetTitle("Pad ADC (Noise Subtraction); x [mm]; y [mm]");
+        hBoundary -> AddBin(4, x, y);
+
+        hPolyADC_subt = fDetectorPlane -> GetPadPlanePoly();
+        hPolyADC_subt -> GetZaxis() -> SetRangeUser(10., 4000);
+        hPolyADC_subt -> SetTitle("Pad ADC (Noise Subtraction); x [mm]; y [mm]");
+
+        hPolyTime_subt = (TH2Poly*)hPolyADC_subt->Clone("polyTime_subt");
+        hPolyTime_subt -> GetZaxis() -> SetRangeUser(1., 512.);
+        hPolyTime_subt -> SetTitle("Pad Time (Noise Subtraction); x [mm]; y [mm]");
+
+        hPolyTime_Y = new TH2D("PolyTime_y", "", 12, -6.1, 139.1, 70, 0., 512);
+        hPolyTime_Y -> SetTitle("Pad Time (Noise Subtraction); y [mm]; TB");
+
+        hTB_subt = new TH2D("TB_subt","", 512, 0, 512, 3600, -100, 3500);
+        hTB_subt -> SetTitle("Timebucket summary; TB ; ADC");
+
+        cRawPad = new TCanvas("rawPad", "", 1400., 1200.);
+        cRawPad -> Divide(2,2);
+
+
+        cTestCanvas = new TCanvas("cTestCanvas","",600., 600.);
+        hTestTB = new TH1D("hTestTB", "", 512, 0., 512.);
+        hTestTB -> SetStats(0);
+        hTestRawTB = new TH1D("hTestTB", "", 512, 0., 512.);
+        hTestRawTB -> SetLineColor(kRed);
+        hTestRawTB -> SetStats(0);
+    }
 
     return true;
 }
 
 void STDNoiseSubtractor::Exec(Option_t *option)
 {
-    // if(fRun->GetCurrentEventID() != 16 &&fRun->GetCurrentEventID() != 18){return;}
     const int asadNum = 4;
 
     // test !! Todo fixed a tmpADC and noise template method 25/02/28
+    if(fOnDrawRawADC){
+        hPolyADC_subt -> ClearBinContents();
+        hPolyTime_subt -> ClearBinContents();
+        hPolyTime_Y -> Reset("ICESM");
+        hTB_subt -> Reset("ICESM");
+    }
 
     double tmpADC[ASADNUM][AGETNUM][CHANNUM][TIMEBUCKET];
     memset(tmpADC, 0, sizeof(tmpADC));
@@ -66,11 +101,6 @@ void STDNoiseSubtractor::Exec(Option_t *option)
         int agetID = fChannel -> GetAget();
         int chanID = fChannel -> GetChan();
         if(chanID == -1){continue;}
-
-        for(int tb=0; tb<512; tb++){
-            // test
-            hRawADC[asadID][agetID][chanID] -> SetBinContent(tb+1, rawADCArr[tb]);
-        }
 
         // if(fDetector -> IsDeadChan(0, padID)){continue;} // dead Channel 
 
@@ -153,54 +183,105 @@ void STDNoiseSubtractor::Exec(Option_t *option)
             fADCTmp -> SetBinContent(tb+1, double(rawADCArr[tb])+fTmpADCOffset);
         }
 
-        double adcIntegral = fADCTmp->Integral(fTBStartIdx, 40) + fADCTmp->Integral(470, fTBEndIdx);
         double noiseIntegral = fNoiseTemplate[asadID]->Integral(fTBStartIdx, 40) + fNoiseTemplate[asadID]->Integral(470, fTBEndIdx);
-        fNoiseTemplate[asadID] -> Scale(adcIntegral/noiseIntegral);
+        fNoiseTemplate[asadID] -> Scale(1./noiseIntegral);
+        double NoiseOffset = fNoiseTemplate[asadID]->Integral(fTBStartIdx+1, fTBEndIdx-1) / double(fTBEndIdx-1 - fTBStartIdx+1);
+
+        double adcIntegral = fADCTmp->Integral(fTBStartIdx, 40) + fADCTmp->Integral(470, fTBEndIdx);
+        fNoiseTemplate[asadID] -> Scale(adcIntegral);
 
         int tmpADC2[512];
         memset(tmpADC2, 0, sizeof(tmpADC2));
         for(int tb=fTBStartIdx; tb<fTBEndIdx; tb++){
             double adc = fADCTmp -> GetBinContent(tb+1) - fTmpADCOffset;
-            double noise =  fNoiseTemplate[asadID] -> GetBinContent(tb+1) - fTmpADCOffset;
+            double noise =  fNoiseTemplate[asadID] -> GetBinContent(tb+1) - fTmpADCOffset - NoiseOffset;
             tmpADC2[tb] = int(adc - noise);
+        }
 
-            hSubADC[asadID][agetID][chanID] -> SetBinContent(tb, tmpADC2[tb]);
+        if(fOnDrawRawADC){
+            int maxADC = 0;
+            int maxTime = 0.;
+
+            hTestTB -> Reset("ICESM");
+            hTestRawTB -> Reset("ICESM");
+            for(int tb=0; tb<512; tb++){
+                hTB_subt -> Fill(tb, tmpADC2[tb]);
+                hTestTB -> Fill(tb, tmpADC2[tb]);
+                hTestRawTB -> Fill(tb, tmpADC[asadID][agetID][chanID][tb]);
+                if(maxADC < tmpADC2[tb]){
+                    maxADC = tmpADC2[tb];
+                    maxTime = tb;
+                }
+            }
+
+            if(maxADC < 40){continue;}
+            if(maxTime < 10 || maxTime > 500){continue;}
+            int layer = fDetectorPlane -> GetLayerID(asadID, agetID, chanID);
+            int row = fDetectorPlane -> GetRowID(asadID, agetID, chanID);
+            double x = fDetectorPlane -> GetX(layer, row);
+            double y = fDetectorPlane -> GetY(layer, row);
+
+            hPolyADC_subt -> Fill(x, y, maxADC);
+            hPolyTime_subt -> Fill(x, y, maxTime);
+            hPolyTime_Y -> Fill(y, maxTime);
+
+
+            cTestCanvas -> cd();
+            // gPad -> SetLogy();
+            hTestTB -> GetYaxis()->SetRangeUser(-200, 500.);
+            hTestTB -> Draw("hist");
+            hTestRawTB -> Draw("same, hist");
+            cTestCanvas -> Update();
+            // cTestCanvas -> SaveAs(Form("event%i_pad%i.png", fRun->GetCurrentEventID(), pad));
         }
         fChannel -> SetWaveformY(tmpADC2);
     }
 
-    // for(int asad=0; asad<1; asad++){
-    //     for(int aget=0; aget<4; aget++){
-    //         for(int chan=0; chan<68; chan++){
-    //             cADC -> cd();
-    //             hRawADC[asad][aget][chan] -> Draw("hist");
-    //             hSubADC[asad][aget][chan] -> Draw("hist, same");
+    if(fMakeNoiseShapeMode){
+        SaveNoiseTemplate();
+    }
 
-    //             cADC -> Draw();
-    //             cADC -> SaveAs(Form("./pulse/Pulse_Event%i_asad%i_aget%i_chan%i.pdf", int(fRun->GetCurrentEventID()), asad, aget, chan));
-    //         }
-    //     }
-    // }
+    // Drawing 
+    if(fOnDrawRawADC){
+        cRawPad -> cd(1);
+        hBoundary -> Draw();
+        hPolyADC_subt -> Draw("same, colz");
+        cRawPad -> cd(2);
+        hPolyTime_Y -> Draw("colz");
+        cRawPad -> cd(3);
+        hPolyTime_subt -> Draw("colz");
+        cRawPad -> cd(4);
+        hTB_subt -> Draw("colz, hist");
 
-    // for(int asad=0; asad<1; asad++){
-    //     const int cIdx = asad+1;
-    //     cADCAsad -> cd(cIdx);
-    //     // hRawADC[asad][0][0] -> Draw("hist");
-    //     hSubADC[asad][0][0] -> Draw("hist");
-    //     for(int aget=0; aget<3; aget++){
-    //         for(int chan=0; chan<68; chan++){
-    //             // hRawADC[asad][aget][chan] -> Draw("hist, same");
-    //             hSubADC[asad][aget][chan] -> Draw("hist, same");
-    //         }
-    //     }
-    // }
-    // cADCAsad -> Draw();
-    // cADCAsad -> SaveAs(Form("./pulse/Pulse_Event%i.pdf", fRun->GetCurrentEventID()));
-
-
+        cRawPad -> Update();
+        cRawPad -> SaveAs(Form("./figure/rawPad_evt%i.png", fRun->GetCurrentEventID()));
+    }
 }
 
 bool STDNoiseSubtractor::EndOfRun()
 {
+    if(fMakeNoiseShapeMode){
+        fNoiseFile -> cd();
+        fNoiseTree -> Write();
+        fNoiseFile -> Close();
+    }
+
     return true;
+}
+
+void STDNoiseSubtractor::SaveNoiseTemplate()
+{
+    for(int asad=0; asad<ASADNUM; asad++){
+        double noiseIntegral = fNoiseTemplate[asad]->Integral(fTBStartIdx, 40) + fNoiseTemplate[asad]->Integral(470, fTBEndIdx);
+        if(noiseIntegral < 0.01){continue;}
+        fNoiseTemplate[asad] -> Scale(1./noiseIntegral);
+        memset(fNoiseData, 0., sizeof(fNoiseData));
+
+        double NoiseOffset = fNoiseTemplate[asad]->Integral(fTBStartIdx+1, fTBEndIdx-1) / double(fTBEndIdx-1 - fTBStartIdx+1);
+
+        for(int tb=fTBStartIdx; tb<fTBEndIdx; tb++){
+            fNoiseData[tb] = fNoiseTemplate[asad]->GetBinContent(tb+1) - NoiseOffset;
+        }
+        fNoiseTree -> Fill();
+    }
 }

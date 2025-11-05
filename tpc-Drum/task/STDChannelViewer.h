@@ -47,6 +47,7 @@ class STDChannelViewer : public LKTask
         TH1I* hHitNum = nullptr;
         TH1I* hRowHitNum = nullptr;
         TH1D* hSumADC = nullptr;
+        TH2D* hHitADC = nullptr;
 
         TFile* outFile;
         TTree* outTree;
