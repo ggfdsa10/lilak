@@ -14,7 +14,9 @@ TPCDrum/
     GasContourMixRatio 10. # [%] for contour gas
     WindowMaterial Havar # [Havar, etc..]
     WindowThickness 0.01 # [mm]
-    GatingGrid true
+    GatingGrid false
+    FieldDistortion true
+    FieldDistortion/EFieldDataPath /home/shlee/workspace/lilak/tpcdrum/common/STDGarfield_FieldMap_3000V.root
 
 persistency/
     MCTrackVertex true
