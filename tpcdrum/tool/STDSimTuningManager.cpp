@@ -11,7 +11,6 @@ STDSimTuningManager* STDSimTuningManager::GetSimTuningManager()
 STDSimTuningManager::STDSimTuningManager()
 {
     fInstance = this;
-
     Init();
 }
 
@@ -22,11 +21,12 @@ bool STDSimTuningManager::Init()
     fRun = LKRun::GetRun();
     fPar = fRun -> GetParameterContainer();
 
-    fElectronStepSize = 2.; // Default[mm]
+    fElectronStepSize = 1.; // Default[mm]
     if(fPar->CheckPar("TPCDrum/ElectronStepSize")){
         fElectronStepSize = fPar->GetParDouble("TPCDrum/ElectronStepSize");
     }
 
+    InitGarfieldGasData();
     InitGEMGain();
 
     return true;
@@ -36,27 +36,37 @@ double STDSimTuningManager::GetWValue(){return 41.;} // test !!!
 
 double STDSimTuningManager::GetElectronStepSize(){return fElectronStepSize;}
 
-double STDSimTuningManager::GetDriftVelocity(double x, double y, double z){
+double STDSimTuningManager::GetDriftVelocity(double x, double y, double z)
+{
     double efield = fFieldDistortion -> GetEFieldMag(x, y, z);
-    double bfield = fFieldDistortion -> GetBFieldMag(x, y, z);
+    // double bfield = fFieldDistortion -> GetBFieldMag(x, y, z); // to be updated
 
-    return 5.4 * 0.01;// [mm/ns] test !!!
+    if(fIsInitGarfieldData){
+        return mVelocityData -> Eval(efield); // [mm/ns] 
+    }
+    return 0.9 * 0.01; // [mm/ns] 
 }
 
 double STDSimTuningManager::GetDiffusionT(double x, double y, double z)
 {
     double efield = fFieldDistortion -> GetEFieldMag(x, y, z);
-    double bfield = fFieldDistortion -> GetBFieldMag(x, y, z);
+    // double bfield = fFieldDistortion -> GetBFieldMag(x, y, z); // to be updated
 
-    return 0.02 * 10./sqrt(10.);// [mm/sqrt{mm}] test !!!
+    if(fIsInitGarfieldData){
+        return mTransDiffusionData -> Eval(efield); // [mm/sqrt(mm)]
+    }
+    return 0.02 * 10./sqrt(10.);// [mm/sqrt(mm)]
 }
 
 double STDSimTuningManager::GetDiffusionL(double x, double y, double z)
 {
     double efield = fFieldDistortion -> GetEFieldMag(x, y, z);
-    double bfield = fFieldDistortion -> GetBFieldMag(x, y, z);
+    // double bfield = fFieldDistortion -> GetBFieldMag(x, y, z); // to be updated
 
-    return 0.018 * 10./sqrt(10.); // [mm/sqrt{mm}] test !!!
+    if(fIsInitGarfieldData){
+        return mLongiDiffusionData -> Eval(efield); // [mm/sqrt(mm)]
+    }
+    return 0.018 * 10./sqrt(10.); // [mm/sqrt(mm)]
 }
 
 double STDSimTuningManager::GetGEMGainFactor(double x, double y, double z)
@@ -85,9 +95,32 @@ double STDSimTuningManager::GetExtraDiffusionT()
     return 0.;
 }
 
-void STDSimTuningManager::InitGarfieldData()
+void STDSimTuningManager::InitGarfieldGasData()
 {
+    fIsInitGarfieldData = false;
+    if(fPar->CheckPar("TPCDrum/GarfieldGasData")){
+        bool isUseData = fPar->GetParBool("TPCDrum/GarfieldGasData");
+        if(isUseData){
+            fIsInitGarfieldData = true;
+        }
+    }
+    if(fIsInitGarfieldData){
+        if(fPar->CheckPar("TPCDrum/GarfieldGasData/DataPath")){
+            TString dataPath = fPar->GetParString("TPCDrum/GarfieldGasData/DataPath");
+            TFile* file = new TFile(dataPath, "READ");
+            mVelocityData = (TGraph*)file -> Get("DriftVelocity");
+            mTransDiffusionData = (TGraph*)file -> Get("TransverseDiffusion");
+            mLongiDiffusionData = (TGraph*)file -> Get("LongitudinalDiffusion");
 
+            if(mVelocityData == nullptr){
+                fIsInitGarfieldData = false;
+                cout << "STDSimTuningManager::InitGarfieldGasData() -- No Initialized STDGarfield data.." << endl;
+            }
+        }
+    }
+    else{
+        cout << "STDSimTuningManager::InitGarfieldGasData() -- No STDGarfield data, used default parameters" << endl;
+    }
 }
 
 void STDSimTuningManager::InitGEMGain()

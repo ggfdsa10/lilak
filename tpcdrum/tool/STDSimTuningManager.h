@@ -25,7 +25,6 @@ class STDSimTuningManager
         double GetElectronStepSize();
         double GetWValue(); // [eV]
 
-
         // local pad plane coordinate
         double GetDriftVelocity(double x, double y, double z); // V_{D} [mm/us]
         double GetDiffusionT(double x, double y, double z);    // D_{T} [mm/sqrt{mm}]
@@ -39,7 +38,7 @@ class STDSimTuningManager
         double GetExtraDiffusionT();
 
     private:
-        void InitGarfieldData();
+        void InitGarfieldGasData();
         void InitGEMGain();
 
         double GetGEMGain();
@@ -53,6 +52,11 @@ class STDSimTuningManager
         STDGainCalibrationMaker* fGainCalibration;
 
         double fElectronStepSize;
+
+        bool fIsInitGarfieldData;
+        TGraph* mVelocityData;
+        TGraph* mTransDiffusionData;
+        TGraph* mLongiDiffusionData;
 
         TF1* fGEMGainDist;
         
