@@ -21,10 +21,21 @@ STDGarfieldInterface::STDGarfieldInterface()
     mOutFilePath = "../data/";
     mOutFileTag = "";
     mMultiNode = 1;
+
+    mCoordinateShift[0] = -999.;
+    mCoordinateShift[1] = -999.;
+    mCoordinateShift[2] = -999.;
 }
 
 STDGarfieldInterface::~STDGarfieldInterface()
 {
+}
+
+void STDGarfieldInterface::SetLocalPadCoordinateShift(double xshift, double yshift, double zshift)
+{
+    mCoordinateShift[0] = xshift;
+    mCoordinateShift[1] = yshift;
+    mCoordinateShift[2] = zshift;
 }
 
 void STDGarfieldInterface::SetGas(TString mainGas, double MainGasFraction, TString subGas, double subGasFraction)
@@ -101,6 +112,11 @@ void STDGarfieldInterface::InitGas()
 
 void STDGarfieldInterface::InitElmerFieldMap()
 {
+    if(mCoordinateShift[0] < -900.){
+        cout << "STDGarfieldInterface::InitElmerFieldMap() -- There is no coordinate shift setting!!!" << endl;
+        return;
+    }
+
     mElmer = new ComponentElmer(Form("%s/mesh.header", mElmerMapPath.Data()),
                                 Form("%s/mesh.elements", mElmerMapPath.Data()),
                                 Form("%s/mesh.nodes", mElmerMapPath.Data()),
@@ -141,16 +157,20 @@ int STDGarfieldInterface::ConvertFieldMap()
     cout << " STDGarfieldInterface::ConvertFieldMap() -- Converting started " << endl;
     
     double minX, minY, minZ, maxX, maxY, maxZ; // elmer map boundaries
-    mElmer -> GetBoundingBox(minX, minX, minZ, maxX, maxY, maxZ); // [cm]
+    mElmer -> GetBoundingBox(minX, minY, minZ, maxX, maxY, maxZ); // [cm]
+
+    double xShift = mCoordinateShift[0]; // [cm]
+    double yShift = mCoordinateShift[1]; // [cm]
+    double zShift = mCoordinateShift[2]; // [cm]
 
     int binNumX = int((maxX - minX)/mFieldStepSize);
     int binNumY = int((maxY - minY)/mFieldStepSize);
     int binNumZ = int((maxZ - minZ)/mFieldStepSize);
-    
-    TH3D* fieldMap_ex = new TH3D("FieldMap_ex", "", binNumX, minX, maxX, binNumY, minY, maxY, binNumZ, minZ, maxZ);
-    TH3D* fieldMap_ey = new TH3D("FieldMap_ey", "", binNumX, minX, maxX, binNumY, minY, maxY, binNumZ, minZ, maxZ);
-    TH3D* fieldMap_ez = new TH3D("FieldMap_ez", "", binNumX, minX, maxX, binNumY, minY, maxY, binNumZ, minZ, maxZ);
-    TH3D* fieldMap_v = new TH3D("FieldMap_v", "", binNumX, minX, maxX, binNumY, minY, maxY, binNumZ, minZ, maxZ);
+
+    TH3D* fieldMap_ex = new TH3D("FieldMap_ex", "", binNumX, (minX+xShift)*cm2mm, (maxX+xShift)*cm2mm, binNumY, (minY+yShift)*cm2mm, (maxY+yShift)*cm2mm, binNumZ, (minZ+zShift)*cm2mm, (maxZ+zShift)*cm2mm); // [mm]
+    TH3D* fieldMap_ey = new TH3D("FieldMap_ey", "", binNumX, (minX+xShift)*cm2mm, (maxX+xShift)*cm2mm, binNumY, (minY+yShift)*cm2mm, (maxY+yShift)*cm2mm, binNumZ, (minZ+zShift)*cm2mm, (maxZ+zShift)*cm2mm); // [mm]
+    TH3D* fieldMap_ez = new TH3D("FieldMap_ez", "", binNumX, (minX+xShift)*cm2mm, (maxX+xShift)*cm2mm, binNumY, (minY+yShift)*cm2mm, (maxY+yShift)*cm2mm, binNumZ, (minZ+zShift)*cm2mm, (maxZ+zShift)*cm2mm); // [mm]
+    TH3D* fieldMap_v = new TH3D("FieldMap_v",   "", binNumX, (minX+xShift)*cm2mm, (maxX+xShift)*cm2mm, binNumY, (minY+yShift)*cm2mm, (maxY+yShift)*cm2mm, binNumZ, (minZ+zShift)*cm2mm, (maxZ+zShift)*cm2mm); // [mm]
     fieldMap_ex -> SetName("EFieldMap_ex");
     fieldMap_ey -> SetName("EFieldMap_ey");
     fieldMap_ez -> SetName("EFieldMap_ez");
@@ -163,16 +183,16 @@ int STDGarfieldInterface::ConvertFieldMap()
     for(int ix=0; ix<binNumX; ix++){
         for(int iy=0; iy<binNumY; iy++){
             for(int iz=0; iz<binNumZ; iz++){
-                x = minX + double(ix)*mFieldStepSize + (mFieldStepSize/2.);
-                y = minY + double(iy)*mFieldStepSize + (mFieldStepSize/2.);
-                z = minZ + double(iz)*mFieldStepSize + (mFieldStepSize/2.);
-                mElmer -> ElectricField(x, y, z, ex, ey, ez, v, m, status);
+                x = minX + double(ix)*mFieldStepSize + (mFieldStepSize/2.); // [cm]
+                y = minY + double(iy)*mFieldStepSize + (mFieldStepSize/2.); // [cm]
+                z = minZ + double(iz)*mFieldStepSize + (mFieldStepSize/2.); // [cm]
+                mElmer -> ElectricField(x, y, z, ex, ey, ez, v, m, status); // [cm, V/cm, V]
                 if(status < 0){continue;}
                 
-                fieldMap_ex -> Fill(x, y, z, ex);
-                fieldMap_ey -> Fill(x, y, z, ey);
-                fieldMap_ez -> Fill(x, y, z, ez);
-                fieldMap_v -> Fill(x, y, z, v);
+                fieldMap_ex -> Fill((x+xShift)*cm2mm, (y+yShift)*cm2mm, (z+zShift)*cm2mm, ex); // [mm, mm, mm, V/cm]
+                fieldMap_ey -> Fill((x+xShift)*cm2mm, (y+yShift)*cm2mm, (z+zShift)*cm2mm, ey); // [mm, mm, mm, V/cm]
+                fieldMap_ez -> Fill((x+xShift)*cm2mm, (y+yShift)*cm2mm, (z+zShift)*cm2mm, ez); // [mm, mm, mm, V/cm]
+                fieldMap_v  -> Fill((x+xShift)*cm2mm, (y+yShift)*cm2mm, (z+zShift)*cm2mm, v); // [mm, mm, mm, V]
             }
         }
     }

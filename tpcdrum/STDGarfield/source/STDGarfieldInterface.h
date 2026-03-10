@@ -31,6 +31,10 @@ class STDGarfieldInterface
         STDGarfieldInterface();
         ~STDGarfieldInterface();
 
+        // Note: It is a important values to match Elmer to local pad coordinate 
+        // Please ensure the local pad coordinate from Elmer coordinate
+        void SetLocalPadCoordinateShift(double xshift, double yshift, double zshift); 
+
         void SetGas(TString mainGas, double MainGasFraction, TString subGas="", double subGasFraction=0.); // default He4 90% + CO2 10%
         void SetGasPressure(double torr){mGasPressure = torr;}           // default 760 Torr
         void SetGasTemperature(double kelvin){mGasTemperature = kelvin;} // default 293.15 K
@@ -70,6 +74,7 @@ class STDGarfieldInterface
         int mGasCollNum;
 
         double mFieldStepSize; // [cm]
+        double mCoordinateShift[3]; // [x, y, z]
         double mEFieldBoundary[3]; // [num, min, max]
         double BFieldBoundary[3]; // [num, min, max]
 
@@ -78,6 +83,10 @@ class STDGarfieldInterface
         TString mOutFileTag;
         int mMultiNode;
 
+
+        const double cm2mm = 10.; // cm to mm conversion factor
+        //const double cmus2mmns = ;
+        //const double cmPerSqrtcm2 = ;
 
 
 };
