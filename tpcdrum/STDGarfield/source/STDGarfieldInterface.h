@@ -83,7 +83,6 @@ class STDGarfieldInterface
         TString mOutFileTag;
         int mMultiNode;
 
-
         const double cm2mm = 10.; // cm to mm conversion factor
         //const double cmus2mmns = ;
         //const double cmPerSqrtcm2 = ;
