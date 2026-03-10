@@ -6,8 +6,6 @@ STDFieldDistortionMaker::STDFieldDistortionMaker() : fInitEFieldFlag(false), fIn
 
 bool STDFieldDistortionMaker::Init()
 {
-    cout << "STDFieldDistortionMaker::Init()" << endl;
-    
     fRun = LKRun::GetRun();
     fPar = fRun -> GetParameterContainer();
 
@@ -31,12 +29,14 @@ double STDFieldDistortionMaker::GetEField(double x, double y, double z, int dire
         if(direction == dirX){fieldValue = 0;}
         else if(direction == dirY){fieldValue = 0;}
         else if(direction == dirZ){fieldValue = 250.;}
-        else{fieldValue = -1;} // wrong direction !!
+        else{fieldValue = -1;}
     }
     else{
-        // To be updated the E-field map getting function
+        if(direction == dirX){fieldValue = mEFieldMap[0] -> Interpolate(x, y, z);}
+        else if(direction == dirY){fieldValue = mEFieldMap[1] -> Interpolate(x, y, z);}
+        else if(direction == dirZ){fieldValue = mEFieldMap[2] -> Interpolate(x, y, z);}
+        else{fieldValue = -999;}
     }
-
     return fieldValue;
 }
 
@@ -68,20 +68,20 @@ double STDFieldDistortionMaker::GetBField(double x, double y, double z, int dire
 
 double STDFieldDistortionMaker::GetBFieldMag(double x, double y, double z)
 {
-    double bx = GetEField(x, y, z, dirX);
-    double by = GetEField(x, y, z, dirY);
-    double bz = GetEField(x, y, z, dirZ);
+    double bx = GetBField(x, y, z, dirX);
+    double by = GetBField(x, y, z, dirY);
+    double bz = GetBField(x, y, z, dirZ);
     double b = sqrt(bx*bx + by*by + bz*bz);
     return b;
 }
 
 bool STDFieldDistortionMaker::GetElectronDirection(double x, double y, double z, double& dx, double& dy, double& dz)
 {
-    double ex = fabs(GetEField(x, y, z, dirX));
-    double ey = fabs(GetEField(x, y, z, dirY));
-    double ez = fabs(GetEField(x, y, z, dirZ));
+    double ex = GetEField(x, y, z, dirX);
+    double ey = GetEField(x, y, z, dirY);
+    double ez = GetEField(x, y, z, dirZ);
     double e  = GetEFieldMag(x, y, z);
-    if(e <= 0.1){return false;}
+    if(e <= 0.){return false;}
 
     dx = ex/e;
     dy = ey/e;
@@ -92,11 +92,32 @@ bool STDFieldDistortionMaker::GetElectronDirection(double x, double y, double z,
 void STDFieldDistortionMaker::InitEFieldMap()
 {
     // To be updated 
-    fInitEFieldFlag = true;
+    if(fPar->CheckPar("TPCDrum/FieldDistortion/EFieldDataPath")){
+        TString dataPath = fPar->GetParString("TPCDrum/FieldDistortion/EFieldDataPath");
+        
+        TFile* file = new TFile(dataPath, "READ");
+        mEFieldMap[0] = (TH3D*)file -> Get("EFieldMap_ex");
+        mEFieldMap[1] = (TH3D*)file -> Get("EFieldMap_ey");
+        mEFieldMap[2] = (TH3D*)file -> Get("EFieldMap_ez");
+        mEFieldMap[3] = (TH3D*)file -> Get("EFieldMap_v");
+        file -> Close();
+
+        fInitEFieldFlag = true;
+        cout << "STDFieldDistortionMaker::InitEFieldMap() -- E-Field map has been initialized" << endl;
+    }
+    else{
+        cout << "STDFieldDistortionMaker::InitEFieldMap() -- TPCDrum/FieldDistortion/EFieldDataPath is wrong, turn off the E-Field map" << endl;
+    }
 }
 
 void STDFieldDistortionMaker::InitBFieldMap()
 {
-    // To be updated 
-    fInitBFieldFlag = true;
+    if(fPar->CheckPar("TPCDrum/FieldDistortion/BFieldDataPath")){
+        TString dataPath = fPar->GetParString("TPCDrum/FieldDistortion/BFieldDataPath");
+
+        fInitBFieldFlag = true;
+    }
+    else{
+        cout << "STDFieldDistortionMaker::InitBFieldMap() -- TPCDrum/FieldDistortion/BFieldDataPath is wrong, turn off the E-Field map" << endl;
+    }
 }

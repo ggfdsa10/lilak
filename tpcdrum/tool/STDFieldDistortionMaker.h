@@ -7,6 +7,7 @@
 #include "TPCDrum.h"
 #include "STDPadPlane.h"
 
+#include "TH3D.h"
 
 class STDFieldDistortionMaker
 {
@@ -41,6 +42,9 @@ class STDFieldDistortionMaker
         LKParameterContainer* fPar;
         TPCDrum *fDetector;
         STDPadPlane *fPadPlane;
+
+        TH3D* mEFieldMap[4]; // [ex, ey, ez, v]
+        TH3D* mBFieldMap[3]; // [bx, by, bz]
 
 };
 
