@@ -12,6 +12,7 @@ output/
 *.root
 *.graw
 *.gdml
+link_*
 
 #figures
 figures/
@@ -27,9 +28,7 @@ figures/
 
 #configurations and logs
 macros/command_lilak.sh
-log/*
-*.log
-!log/*.in
+macros/rootlogon.C
 
 #updating
 common/*
