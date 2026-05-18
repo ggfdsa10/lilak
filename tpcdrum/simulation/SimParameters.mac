@@ -1,22 +1,40 @@
 LKG4Manager/
-    VisMode 1
+    VisMode 0
     NPToolMode true
-    #G4OutputFile mc_sequential_trigger_all_4.root
     G4OutputFile test.root
     SuppressG4InitMessage true
 
 NPTool/
-    ReactionFile Ne20_3alpha.reaction
-    #ReactionFile SingleAlpha.reaction
+    #ReactionFile Ne20_3alpha.reaction
+    ReactionFile SingleAlpha.reaction
 
 TPCDrum/
-    GasPressure 760. #asasdf [torr]
-    GasContourMixRatio 10. # [%] for contour gas
-    WindowMaterial Havar # [Havar, etc..]
-    WindowThickness 0.01 # [mm]
-    GatingGrid false
-    FieldDistortion true
-    FieldDistortion/EFieldDataPath /home/shlee/workspace/lilak/tpcdrum/common/STDGarfield_FieldMap_3000V.root
+    ##### TPCDrum Materials (He4 + CO2 gas mixture) #####
+    GasPressure 650.        # Gas pressure [Torr], default 650 Torr
+    GasContourMixRatio 10.  # [%] for contour gas, default 10% for CO2
+    WindowMaterial Havar    # [Havar, etc..], default Havar foil
+    WindowThickness 0.01    # Window film thinckness [mm], default 0.01 mm = 10 um
+
+    ##### Simulation tuning switch #####
+    GatingGrid        false # on-off for Gating Grid simulation and effects
+    FieldDistortionOn true  # on-off for Electric field 3D map from STDGarfield 
+    GarfieldGasOn     true  # on-off for Gas properties from STDGarfield
+    PulseShapeOn      true  # on-off for Simulated pulse from data 
+    NoiseShapeOn      true  # on-off for Simulated noise from data 
+    GainCorrectionOn  false # on-off for GEM Gain correction by pads
+
+    ##### Simulation parameters #####
+    ElectronStepSize  1.    # Drift electron step size [mm], default 1 mm 
+    TimeBucketUnit    20    # Time bucket unit secends [ns], default 20 ns
+    DynamicRange      240   # ADC Dynamic range [120, 240, 1000, 10000] [fC], default  240 fC
+    PulseDelay        100   # first pulse Peaking time delay [TB], default 100 TB
+
+    ##### Data path #####
+    SimDataPath      /home/shlee/workspace/lilak/tpcdrum/common  # simulation correction data file path
+    STDGarfieldData  STDGarfield_He4_90_CO2_10_650Torr.root      # STDGarfield format root file with specific gas system 
+    FieldData        STDGarfield_FieldMap_3000V.root             # STDGarfield format field map root file
+    PulseShapeData   Pulse_template_502PT_20ns.root              # Pulse template root file from STDPulseAnalyser
+    NoiseShapeData   Noise_template.root                         # Noise template root file from STDNoiseSubtractor
 
 persistency/
     MCTrackVertex true
