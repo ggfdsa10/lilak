@@ -10,8 +10,8 @@ bool STDFieldDistortionMaker::Init()
     fPar = fRun -> GetParameterContainer();
 
     bool onFieldDistortion = false;
-    if(fPar->CheckPar("TPCDrum/FieldDistortion")){
-        onFieldDistortion = fPar->GetParBool("TPCDrum/FieldDistortion");
+    if(fPar->CheckPar("TPCDrum/FieldDistortionOn")){
+        onFieldDistortion = fPar->GetParBool("TPCDrum/FieldDistortionOn");
     }
     if(onFieldDistortion){
         InitEFieldMap();
@@ -91,19 +91,21 @@ bool STDFieldDistortionMaker::GetElectronDirection(double x, double y, double z,
 
 void STDFieldDistortionMaker::InitEFieldMap()
 {
-    // To be updated 
-    if(fPar->CheckPar("TPCDrum/FieldDistortion/EFieldDataPath")){
-        TString dataPath = fPar->GetParString("TPCDrum/FieldDistortion/EFieldDataPath");
-        
+    TString dataPath = "";
+    if(fPar->CheckPar("TPCDrum/SimDataPath")){
+        dataPath = fPar->GetParString("TPCDrum/SimDataPath");
+        if(dataPath[dataPath.Sizeof()-1] != '/'){dataPath += "/";}
+        dataPath += fPar->GetParString("TPCDrum/FieldData");
+    }
+    if(dataPath != ""){
         TFile* file = new TFile(dataPath, "READ");
         mEFieldMap[0] = (TH3D*)file -> Get("EFieldMap_ex");
         mEFieldMap[1] = (TH3D*)file -> Get("EFieldMap_ey");
         mEFieldMap[2] = (TH3D*)file -> Get("EFieldMap_ez");
         mEFieldMap[3] = (TH3D*)file -> Get("EFieldMap_v");
-        file -> Close();
 
         fInitEFieldFlag = true;
-        cout << "STDFieldDistortionMaker::InitEFieldMap() -- E-Field map has been initialized" << endl;
+        cout << "STDFieldDistortionMaker::InitEFieldMap() -- E-Field map has been initialized " << dataPath << endl;
     }
     else{
         cout << "STDFieldDistortionMaker::InitEFieldMap() -- TPCDrum/FieldDistortion/EFieldDataPath is wrong, turn off the E-Field map" << endl;
@@ -112,12 +114,16 @@ void STDFieldDistortionMaker::InitEFieldMap()
 
 void STDFieldDistortionMaker::InitBFieldMap()
 {
-    if(fPar->CheckPar("TPCDrum/FieldDistortion/BFieldDataPath")){
-        TString dataPath = fPar->GetParString("TPCDrum/FieldDistortion/BFieldDataPath");
-
+    TString dataPath = "";
+    if(fPar->CheckPar("TPCDrum/SimDataPath")){
+        dataPath = fPar->GetParString("TPCDrum/SimDataPath");
+        if(dataPath[dataPath.Sizeof()-1] != '/'){dataPath += "/";}
+        dataPath += fPar->GetParString("TPCDrum/FieldData");
+    }
+    if(dataPath != ""){
         fInitBFieldFlag = true;
     }
     else{
-        cout << "STDFieldDistortionMaker::InitBFieldMap() -- TPCDrum/FieldDistortion/BFieldDataPath is wrong, turn off the E-Field map" << endl;
+        cout << "STDFieldDistortionMaker::InitBFieldMap() -- TPCDrum/FieldDistortion/BFieldDataPath is wrong, turn off the B-Field map" << endl;
     }
 }

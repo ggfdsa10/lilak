@@ -21,20 +21,19 @@ bool STDSimTuningManager::Init()
     fRun = LKRun::GetRun();
     fPar = fRun -> GetParameterContainer();
 
-    fElectronStepSize = 1.; // Default[mm]
+    InitGarfieldGasData();
+    InitGEMGain();
+    InitPulseShape();
+
+    fElectronStepSize = 1.; // [mm]
     if(fPar->CheckPar("TPCDrum/ElectronStepSize")){
         fElectronStepSize = fPar->GetParDouble("TPCDrum/ElectronStepSize");
     }
-
-    InitGarfieldGasData();
-    InitGEMGain();
 
     return true;
 }
 
 double STDSimTuningManager::GetWValue(){return 41.;} // test !!! 
-
-double STDSimTuningManager::GetElectronStepSize(){return fElectronStepSize;}
 
 double STDSimTuningManager::GetDriftVelocity(double x, double y, double z)
 {
@@ -98,24 +97,33 @@ double STDSimTuningManager::GetExtraDiffusionT()
 void STDSimTuningManager::InitGarfieldGasData()
 {
     fIsInitGarfieldData = false;
-    if(fPar->CheckPar("TPCDrum/GarfieldGasData")){
-        bool isUseData = fPar->GetParBool("TPCDrum/GarfieldGasData");
-        if(isUseData){
-            fIsInitGarfieldData = true;
-        }
+    if(fPar->CheckPar("TPCDrum/GarfieldGasOn")){
+        fIsInitGarfieldData = fPar->GetParBool("TPCDrum/GarfieldGasOn");
     }
-    if(fIsInitGarfieldData){
-        if(fPar->CheckPar("TPCDrum/GarfieldGasData/DataPath")){
-            TString dataPath = fPar->GetParString("TPCDrum/GarfieldGasData/DataPath");
-            TFile* file = new TFile(dataPath, "READ");
-            mVelocityData = (TGraph*)file -> Get("DriftVelocity");
-            mTransDiffusionData = (TGraph*)file -> Get("TransverseDiffusion");
-            mLongiDiffusionData = (TGraph*)file -> Get("LongitudinalDiffusion");
+    cout << fIsInitGarfieldData << endl;
 
-            if(mVelocityData == nullptr){
-                fIsInitGarfieldData = false;
-                cout << "STDSimTuningManager::InitGarfieldGasData() -- No Initialized STDGarfield data.." << endl;
-            }
+    TString dataPath = "";
+    if(fPar->CheckPar("TPCDrum/SimDataPath")){
+        dataPath = fPar->GetParString("TPCDrum/SimDataPath");
+        if(dataPath[dataPath.Sizeof()-1] != '/'){dataPath += "/";}
+        dataPath += fPar->GetParString("TPCDrum/STDGarfieldData");
+    }
+
+    cout << " dataPath " << dataPath << endl;
+
+    if(dataPath != "" && fIsInitGarfieldData){
+
+        TFile* file = new TFile(dataPath, "READ");
+        mVelocityData = (TGraph*)file -> Get("DriftVelocity");
+        mTransDiffusionData = (TGraph*)file -> Get("TranseverseDiffusion");
+        mLongiDiffusionData = (TGraph*)file -> Get("LongitudinalDiffusion");
+
+        if(mVelocityData == nullptr){
+            fIsInitGarfieldData = false;
+            cout << "STDSimTuningManager::InitGarfieldGasData() -- No Initialized STDGarfield data.." << endl;
+        }
+        else{
+            cout << "STDSimTuningManager::InitGarfieldGasData() -- STDGarfield has been nitialized " << dataPath << endl;
         }
     }
     else{
@@ -129,6 +137,47 @@ void STDSimTuningManager::InitGEMGain()
     fGEMGainDist = new TF1("function", this, &STDSimTuningManager::PolyaDistribution, 0., 50000., 2);
     fGEMGainDist -> SetParameter(0, 1.5); // M, See the STAR TPC gain fluctuation
     fGEMGainDist -> SetParameter(1, 6500); // Intrincsic gain
+}
+
+
+void STDSimTuningManager::InitPulseShape()
+{
+    bool onPulseShape = false;
+    if(fPar->CheckPar("TPCDrum/PulseShapeOn")){
+        onPulseShape = fPar->GetParBool("TPCDrum/PulseShapeOn");
+    }
+    TString dataPath = "";
+    if(fPar->CheckPar("TPCDrum/SimDataPath")){
+        dataPath = fPar->GetParString("TPCDrum/SimDataPath");
+        if(dataPath[dataPath.Sizeof()-1] != '/'){dataPath += "/";}
+        dataPath += fPar->GetParString("TPCDrum/PulseShapeData");
+    }
+    if(dataPath != "" && onPulseShape){
+        
+    }
+    else{
+        cout << "STDSimTuningManager::InitPulseShape() -- No Pulse shape data, not make the pulse" << endl;
+    }
+}
+
+void STDSimTuningManager::InitNoiseShape()
+{
+    bool onNoiseShape = false;
+    if(fPar->CheckPar("TPCDrum/NoiseShapeOn")){
+        onNoiseShape = fPar->GetParBool("TPCDrum/NoiseShapeOn");
+    }
+    TString dataPath = "";
+    if(fPar->CheckPar("TPCDrum/SimDataPath")){
+        dataPath = fPar->GetParString("TPCDrum/SimDataPath");
+        if(dataPath[dataPath.Sizeof()-1] != '/'){dataPath += "/";}
+        dataPath += fPar->GetParString("TPCDrum/NoiseShapeData");
+    }
+    if(dataPath != "" && onNoiseShape){
+
+    }
+    else{
+        cout << "STDSimTuningManager::InitPulseShape() -- No Noise shape data, not make the noise" << endl;
+    } 
 }
 
 double STDSimTuningManager::GetGEMGain()

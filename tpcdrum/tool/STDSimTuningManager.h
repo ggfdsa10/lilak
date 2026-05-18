@@ -22,8 +22,9 @@ class STDSimTuningManager
 
         void SetFieldDostortionMaker(STDFieldDistortionMaker* maker){fFieldDistortion = maker;}
         void SetGainCalibrationMaker(STDGainCalibrationMaker* maker){fGainCalibration = maker;}
-        double GetElectronStepSize();
         double GetWValue(); // [eV]
+
+        double GetElectronStepSize(){return fElectronStepSize;}
 
         // local pad plane coordinate
         double GetDriftVelocity(double x, double y, double z); // V_{D} [mm/us]
@@ -40,6 +41,8 @@ class STDSimTuningManager
     private:
         void InitGarfieldGasData();
         void InitGEMGain();
+        void InitPulseShape();
+        void InitNoiseShape();
 
         double GetGEMGain();
         Double_t PolyaDistribution(Double_t* x, Double_t* par); // Gain fluctuation (Polya distribution)
@@ -47,11 +50,11 @@ class STDSimTuningManager
         static STDSimTuningManager* fInstance;
         LKRun* fRun;
         LKParameterContainer* fPar;
+
+        double fElectronStepSize; // [mm]
         
         STDFieldDistortionMaker* fFieldDistortion;
         STDGainCalibrationMaker* fGainCalibration;
-
-        double fElectronStepSize;
 
         bool fIsInitGarfieldData;
         TGraph* mVelocityData;

@@ -15,10 +15,11 @@ bool STDElectronicsMaker::Init()
     fChannelArray = fRun -> GetBranchA("RawPad");
     fMCTagArray = fRun -> GetBranchA("MCTag");
 
-    fDynamicRange = 1000.; // [fC]
+    fDynamicRange = 240.; // [fC]
     if(fPar -> CheckPar("TPCDrum/DynamicRange")){
         fDynamicRange = fPar -> GetParDouble("TPCDrum/DynamicRange");
     }
+
     fEChargeToADC = fElectronCharge/(fDynamicRange *1.0e-15)*fADCMaxAmp;
 
     fTuneManager = STDSimTuningManager::GetSimTuningManager();
