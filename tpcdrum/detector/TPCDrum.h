@@ -70,7 +70,7 @@ class TPCDrum : public LKDetector
         const double fSiWidth = 40.3; // Si active width
         const double fSiHeight = 75.; // Si active height
         const double fSiThickness = 1.; // Si active thickness
-        const double fSiPlanePosAtPadPlaneCenter = 185.; // Si detectors x-z position with respect to pad plane center
+        const double fSiPlanePosAtPadPlaneCenter = 140.; // Si detectors x-z position with respect to pad plane center
         double fSiDetectorCenter[fSiDetNum][2]; // [si detector num][x, z] in local pad coordinate
         TString fSiDetectorName[fSiDetNum];
         
