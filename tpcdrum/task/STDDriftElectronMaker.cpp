@@ -18,9 +18,9 @@ bool STDDriftElectronMaker::Init()
     fTrackArray = fRun -> KeepBranchA("MCTrack");
     fStepArray = fRun -> KeepBranchA("MCStepTPCDrum");
 
-    fTBTime = 10.; // [ns]
-    if(fPar -> CheckPar("TPCDrum/TBTime")){
-        fTBTime = fPar -> GetParDouble("TPCDrum/TBTime");
+    fTBTime = 20.; // [ns]
+    if(fPar -> CheckPar("TPCDrum/TimeBucketUnit")){
+        fTBTime = fPar -> GetParDouble("TPCDrum/TimeBucketUnit");
     }
 
     fRandom = new TRandom3(0);
@@ -31,7 +31,6 @@ bool STDDriftElectronMaker::Init()
 
     fFieldDistortion -> Init();
     fGatingGrid -> Init();
-
     fTuneManager -> SetFieldDostortionMaker(fFieldDistortion);
     fElectronStepSize = fTuneManager->GetElectronStepSize();
 
@@ -109,6 +108,7 @@ void STDDriftElectronMaker::Exec(Option_t *option)
 
         idx++;
     }
+    
 }
 
 bool STDDriftElectronMaker::EndOfRun()
@@ -181,8 +181,8 @@ bool STDDriftElectronMaker::DriftElectron(double& x, double& y, double& z, doubl
 
 bool STDDriftElectronMaker::AvalancheElectron(double& x, double& y, double& z, double& t, double& w)
 {
-    double extraGainFactor = 1.; // for beamline
-    if(-10. <= x && x <= 10.){extraGainFactor = 0.5;}
+    double extraGainFactor = 1.; // for beamline test parameter!
+    if(-10. <= x && x <= 10.){extraGainFactor = 0.5;} // test
     double gain = fTuneManager -> GetGEMGainFactor(x, y, z) * extraGainFactor;
     double sigmaT = fTuneManager -> GetGEMDiffusionT() * sqrt(z); // [mm]
     double sigmaL = fTuneManager -> GetGEMDiffusionL() * sqrt(z); // [mm]
