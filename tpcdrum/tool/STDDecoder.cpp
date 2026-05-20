@@ -106,16 +106,19 @@ Int_t STDDecoder::FillData()
                 Int_t *fpnSample = fFrame[asad] -> GetSample(aget, fpnChannel);
 
                 int ADC[TIMEBUCKET];
+                double meanFPN = 0.;
                 for(int tb=0; tb<TIMEBUCKET; tb++){ 
                     int adc = sample[tb];
                     int fpn = fpnSample[tb];
                     ADC[tb] = adc - fpn;
+                    meanFPN += double(fpn);
                 }
+                meanFPN /= double(TIMEBUCKET);
 
                 fChannel -> SetAsad(asad);
                 fChannel -> SetAget(aget);
                 fChannel -> SetChan(chan);
-
+                fChannel -> SetPedestal(meanFPN);
                 fChannel -> SetWaveformY(ADC);
                 channelIdx++;
             }
