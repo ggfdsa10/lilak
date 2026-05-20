@@ -18,7 +18,7 @@ bool STDDriftElectronMaker::Init()
     fTrackArray = fRun -> KeepBranchA("MCTrack");
     fStepArray = fRun -> KeepBranchA("MCStepTPCDrum");
 
-    fTBTime = 20.; // [ns]
+    fTBTime = 40.; // [ns]
     if(fPar -> CheckPar("TPCDrum/TimeBucketUnit")){
         fTBTime = fPar -> GetParDouble("TPCDrum/TimeBucketUnit");
     }
@@ -143,6 +143,8 @@ bool STDDriftElectronMaker::DriftElectron(double& x, double& y, double& z, doubl
 
     while(1){
         if(z <= GEMSurfaceHeight){return true;} // break if z lower then triple GEM height
+        bool isIn = fDetector -> IsInBoundary(x, y, z); 
+        if(!isIn){return false;} // check either electron inside active area
 
         // Step1: Calculate the Gating Grid effect 
         double GatingGridFactor = fGatingGrid -> GetGatingGridFactor(x, y, z);
@@ -151,6 +153,10 @@ bool STDDriftElectronMaker::DriftElectron(double& x, double& y, double& z, doubl
         // Step2: Get the electron direction using Field map
         double dirX, dirY, dirZ;
         fFieldDistortion -> GetElectronDirection(x, y, z, dirX, dirY, dirZ);
+
+        double eField = sqrt(dirX*dirX+dirY*dirY+dirZ*dirZ);
+        if(eField < 0.1){return false;} // check E-Field values
+
         fElectronUnitVec.SetXYZ(dirX, dirY, dirZ);
 
         // Step3: Generate random diffusion with respect to electron direction vector
@@ -159,7 +165,7 @@ bool STDDriftElectronMaker::DriftElectron(double& x, double& y, double& z, doubl
         double velocityD = fTuneManager -> GetDriftVelocity(x, y, z); // [mm/ns]
 
         double dr = fRandom -> Gaus(0., sigmaT);
-        double dt = fRandom -> Gaus(0, sigmaL)/velocityD;
+        double dt = fRandom -> Gaus(0., sigmaL)/velocityD;
         double phi = fRandom -> Uniform(2*TMath::Pi());
 
         fOthogonalUnitVec = fElectronUnitVec.Orthogonal(); // Get the transverse plane with respect to electron direction vector
