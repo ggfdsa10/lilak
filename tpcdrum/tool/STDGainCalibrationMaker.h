@@ -7,7 +7,6 @@
 #include "TPCDrum.h"
 #include "STDPadPlane.h"
 
-
 class STDGainCalibrationMaker
 {
     public:
