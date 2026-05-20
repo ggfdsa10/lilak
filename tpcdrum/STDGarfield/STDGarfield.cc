@@ -12,7 +12,7 @@ int main()
     double PadGap = 0.01; //[cm] pad gap between pads
     double LayerNum = 12; // number of layer
     double yShift = (PadHeight+PadGap)*(LayerNum/2.-1.) + (PadHeight+PadGap)/2.;
-    double zShift = 0.9; // [cm] for triple GEM surface height
+    double zShift = 0.9 + 0.6; // [cm] for triple GEM surface height + Field cage spacing (see the msh.geo)
     interface -> SetLocalPadCoordinateShift(0., yShift, zShift); 
 
     interface -> SetConvertFieldMap(); // default 0.1 cm
