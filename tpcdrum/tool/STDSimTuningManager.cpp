@@ -100,7 +100,6 @@ void STDSimTuningManager::InitGarfieldGasData()
     if(fPar->CheckPar("TPCDrum/GarfieldGasOn")){
         fIsInitGarfieldData = fPar->GetParBool("TPCDrum/GarfieldGasOn");
     }
-    cout << fIsInitGarfieldData << endl;
 
     TString dataPath = "";
     if(fPar->CheckPar("TPCDrum/SimDataPath")){
@@ -108,8 +107,6 @@ void STDSimTuningManager::InitGarfieldGasData()
         if(dataPath[dataPath.Sizeof()-1] != '/'){dataPath += "/";}
         dataPath += fPar->GetParString("TPCDrum/STDGarfieldData");
     }
-
-    cout << " dataPath " << dataPath << endl;
 
     if(dataPath != "" && fIsInitGarfieldData){
 
@@ -136,9 +133,8 @@ void STDSimTuningManager::InitGEMGain()
     // Gain fluctuation distribution based on Polya distribution
     fGEMGainDist = new TF1("function", this, &STDSimTuningManager::PolyaDistribution, 0., 50000., 2);
     fGEMGainDist -> SetParameter(0, 1.5); // M, See the STAR TPC gain fluctuation
-    fGEMGainDist -> SetParameter(1, 6500); // Intrincsic gain
+    fGEMGainDist -> SetParameter(1, 2500); // Intrincsic gain
 }
-
 
 void STDSimTuningManager::InitPulseShape()
 {
