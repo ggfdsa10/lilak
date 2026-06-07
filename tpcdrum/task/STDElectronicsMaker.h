@@ -11,14 +11,14 @@
 #include "LKDetector.h"
 #include "GETChannel.h"
 #include "LKMCTag.h"
-
-#include "TRandom3.h"
-#include "TClonesArray.h"
+#include "LKMCTrack.h"
 
 #include "TPCDrum.h"
 #include "STDPadPlane.h"
-
 #include "STDSimTuningManager.h"
+#include "STDPulseAnalyzer.h"
+
+#include "TClonesArray.h"
 
 class STDElectronicsMaker : public LKTask
 { 
@@ -34,15 +34,16 @@ class STDElectronicsMaker : public LKTask
         TPCDrum *fDetector;
         STDPadPlane *fPadPlane;
 
-        TRandom3* fRandom;
-
         STDSimTuningManager* fTuneManager;
+        STDPulseAnalyzer* fPulseAnalyzer;
 
         TClonesArray* fChannelArray;
         TClonesArray* fMCTagArray;
+        TClonesArray* fTrackArray;
 
         GETChannel* fChannel;
         LKMCTag* fMCTag;
+        LKMCTrack* fTrack;
 
         Double_t fDynamicRange;
         Double_t fEChargeToADC;
