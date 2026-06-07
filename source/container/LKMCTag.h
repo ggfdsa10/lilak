@@ -8,11 +8,7 @@
 class LKMCTag : public LKContainer
 {
     protected:
-<<<<<<< HEAD
         std::vector<Int_t> fIndex;  // Arbitraty index
-=======
-        std::vector<Int_t> fIndex;  // Arbitrary index
->>>>>>> 49c05b13ca4702deceef92ca9b00603bc3414760
         std::vector<Int_t> fMCID;   // Truth track ID
         std::vector<Double_t> fWeight; // Truth track weight within same index
 
@@ -28,17 +24,10 @@ class LKMCTag : public LKContainer
 
         Int_t GetMCNum(int index=-1);
         Int_t GetMCID(int mcIdx=0, int index=-1);
-<<<<<<< HEAD
         Double_t GetMCWeight(int mcIdx=0, int index=-1);
-=======
->>>>>>> 49c05b13ca4702deceef92ca9b00603bc3414760
         Double_t GetMCPurity(int mcIdx=0, int index=-1);
 
     ClassDef(LKMCTag, 1)
 };
 
-<<<<<<< HEAD
 #endif
-=======
-#endif
->>>>>>> 49c05b13ca4702deceef92ca9b00603bc3414760
