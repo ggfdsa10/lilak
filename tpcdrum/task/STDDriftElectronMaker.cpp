@@ -67,7 +67,7 @@ void STDDriftElectronMaker::Exec(Option_t *option)
             double y = StartY;
             double z = StartZ;
             double t = StartT;
-            double w = 5.;
+            double w = 1.;
 
             // Make Drift Electron data
             bool driftFlag = DriftElectron(x, y, z, t, w);
@@ -152,10 +152,8 @@ bool STDDriftElectronMaker::DriftElectron(double& x, double& y, double& z, doubl
 
         // Step2: Get the electron direction using Field map
         double dirX, dirY, dirZ;
-        fFieldDistortion -> GetElectronDirection(x, y, z, dirX, dirY, dirZ);
-
-        double eField = sqrt(dirX*dirX+dirY*dirY+dirZ*dirZ);
-        if(eField < 0.1){return false;} // check E-Field values
+        bool isGoodDirection = fFieldDistortion -> GetElectronDirection(x, y, z, dirX, dirY, dirZ);
+        if(!isGoodDirection){return false;}
 
         fElectronUnitVec.SetXYZ(dirX, dirY, dirZ);
 
