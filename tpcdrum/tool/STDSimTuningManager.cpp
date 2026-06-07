@@ -23,7 +23,7 @@ bool STDSimTuningManager::Init()
 
     InitGarfieldGasData();
     InitGEMGain();
-    InitPulseShape();
+    InitNoiseShape();
 
     fElectronStepSize = 1.; // [mm]
     if(fPar->CheckPar("TPCDrum/ElectronStepSize")){
@@ -41,6 +41,7 @@ double STDSimTuningManager::GetDriftVelocity(double x, double y, double z)
     // double bfield = fFieldDistortion -> GetBFieldMag(x, y, z); // to be updated
 
     if(fIsInitGarfieldData){
+        if(efield <= 0.){return 0.;}
         return mVelocityData -> Eval(efield); // [mm/ns] 
     }
     return 0.9 * 0.01; // [mm/ns] 
@@ -52,6 +53,7 @@ double STDSimTuningManager::GetDiffusionT(double x, double y, double z)
     // double bfield = fFieldDistortion -> GetBFieldMag(x, y, z); // to be updated
 
     if(fIsInitGarfieldData){
+        if(efield <= 0.){return 0.;}
         return mTransDiffusionData -> Eval(efield); // [mm/sqrt(mm)]
     }
     return 0.02 * 10./sqrt(10.);// [mm/sqrt(mm)]
@@ -63,6 +65,7 @@ double STDSimTuningManager::GetDiffusionL(double x, double y, double z)
     // double bfield = fFieldDistortion -> GetBFieldMag(x, y, z); // to be updated
 
     if(fIsInitGarfieldData){
+        if(efield <= 0.){return 0.;}
         return mLongiDiffusionData -> Eval(efield); // [mm/sqrt(mm)]
     }
     return 0.018 * 10./sqrt(10.); // [mm/sqrt(mm)]
@@ -94,6 +97,44 @@ double STDSimTuningManager::GetExtraDiffusionT()
     return 0.;
 }
 
+void STDSimTuningManager::InitNoise()
+{
+    if(!fIsNoiseOn){return;}
+    memset(fNoise, 0., sizeof(fNoise));
+
+    // Generate the ASAD-shared noise to adding or abstracting the noise template from 2 to 5 times
+    double weight = fRandom-> Uniform(0.5, 1.8)*100000.;
+    for(int asad=0; asad<4; asad++){
+        int mixNum = fRandom->Uniform(2, 5);
+        for(int i=0; i<mixNum; i++){
+            double sign = (fRandom -> Uniform(0, 2) == 0)? -1. : 1;
+            fNoiseTree -> GetEntry(fRandom->Uniform(0, fNoiseEventNum));
+            for(int tb=0; tb<512; tb++){
+                fNoise[asad][tb] += (weight*sign*fNoiseTemplate[tb]);
+            }
+        }
+    }
+}
+
+void STDSimTuningManager::AddChannelNoise(int asad, int* adc)
+{
+    if(!fIsNoiseOn){return;}
+    if(asad >= 4){return;}
+
+    // Generate the channel-by-channel noise with pedestal
+    double pedestal = fRandom->Uniform(440, 550);
+    double weight = fRandom -> Uniform(0.3, 0.7) *100000.;
+    for(int i=0; i<2; i++){
+        double sign = (fRandom -> Uniform(0, 2) == 0)? -1. : 1;
+        fNoiseTree -> GetEntry(fRandom->Uniform(0, fNoiseEventNum));
+        for(int tb=0; tb<512; tb++){
+            if(i==0){adc[tb] = adc[tb] + fNoise[asad][tb] + pedestal;}
+            adc[tb] = adc[tb] + weight*sign*fNoiseTemplate[tb];
+            if(adc[tb] > 4096){adc[tb] = 4095;}
+        }
+    }
+}
+
 void STDSimTuningManager::InitGarfieldGasData()
 {
     fIsInitGarfieldData = false;
@@ -109,7 +150,6 @@ void STDSimTuningManager::InitGarfieldGasData()
     }
 
     if(dataPath != "" && fIsInitGarfieldData){
-
         TFile* file = new TFile(dataPath, "READ");
         mVelocityData = (TGraph*)file -> Get("DriftVelocity");
         mTransDiffusionData = (TGraph*)file -> Get("TranseverseDiffusion");
@@ -120,7 +160,7 @@ void STDSimTuningManager::InitGarfieldGasData()
             cout << "STDSimTuningManager::InitGarfieldGasData() -- No Initialized STDGarfield data.." << endl;
         }
         else{
-            cout << "STDSimTuningManager::InitGarfieldGasData() -- STDGarfield has been nitialized " << dataPath << endl;
+            cout << "STDSimTuningManager::InitGarfieldGasData() -- STDGarfield has been initialized " << dataPath << endl;
         }
     }
     else{
@@ -136,31 +176,11 @@ void STDSimTuningManager::InitGEMGain()
     fGEMGainDist -> SetParameter(1, 2500); // Intrincsic gain
 }
 
-void STDSimTuningManager::InitPulseShape()
-{
-    bool onPulseShape = false;
-    if(fPar->CheckPar("TPCDrum/PulseShapeOn")){
-        onPulseShape = fPar->GetParBool("TPCDrum/PulseShapeOn");
-    }
-    TString dataPath = "";
-    if(fPar->CheckPar("TPCDrum/SimDataPath")){
-        dataPath = fPar->GetParString("TPCDrum/SimDataPath");
-        if(dataPath[dataPath.Sizeof()-1] != '/'){dataPath += "/";}
-        dataPath += fPar->GetParString("TPCDrum/PulseShapeData");
-    }
-    if(dataPath != "" && onPulseShape){
-        
-    }
-    else{
-        cout << "STDSimTuningManager::InitPulseShape() -- No Pulse shape data, not make the pulse" << endl;
-    }
-}
-
 void STDSimTuningManager::InitNoiseShape()
 {
-    bool onNoiseShape = false;
+    fIsNoiseOn = false;
     if(fPar->CheckPar("TPCDrum/NoiseShapeOn")){
-        onNoiseShape = fPar->GetParBool("TPCDrum/NoiseShapeOn");
+        fIsNoiseOn = fPar->GetParBool("TPCDrum/NoiseShapeOn");
     }
     TString dataPath = "";
     if(fPar->CheckPar("TPCDrum/SimDataPath")){
@@ -168,8 +188,20 @@ void STDSimTuningManager::InitNoiseShape()
         if(dataPath[dataPath.Sizeof()-1] != '/'){dataPath += "/";}
         dataPath += fPar->GetParString("TPCDrum/NoiseShapeData");
     }
-    if(dataPath != "" && onNoiseShape){
+    if(dataPath != "" && fIsNoiseOn){
+        TFile* file = new TFile(dataPath, "READ");
+        fNoiseTree = (TTree*)file -> Get("event");
+        fNoiseTree -> SetBranchAddress("Noise", &fNoiseTemplate);
+        fRandom = new TRandom3(0);
 
+        fNoiseEventNum = fNoiseTree -> GetEntries();
+        if(fNoiseEventNum == 0){
+            fIsNoiseOn = false;
+            cout << "STDSimTuningManager::InitNoiseShape() -- No Initialized Noise template.." << endl;
+        }
+        else{
+            cout << "STDSimTuningManager::InitNoiseShape() -- Noise template has been initialized " << dataPath << endl;
+        }
     }
     else{
         cout << "STDSimTuningManager::InitPulseShape() -- No Noise shape data, not make the noise" << endl;

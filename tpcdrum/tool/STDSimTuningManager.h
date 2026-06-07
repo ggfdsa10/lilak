@@ -9,6 +9,7 @@
 
 #include "TF1.h"
 #include "TMath.h"
+#include "TRandom3.h"
 
 class STDSimTuningManager
 {
@@ -38,10 +39,13 @@ class STDSimTuningManager
 
         double GetExtraDiffusionT();
 
+        // Noise generation
+        void InitNoise();
+        void AddChannelNoise(int asad, int* adc);
+
     private:
         void InitGarfieldGasData();
         void InitGEMGain();
-        void InitPulseShape();
         void InitNoiseShape();
 
         double GetGEMGain();
@@ -56,12 +60,22 @@ class STDSimTuningManager
         STDFieldDistortionMaker* fFieldDistortion;
         STDGainCalibrationMaker* fGainCalibration;
 
+        // Garfield data
         bool fIsInitGarfieldData;
         TGraph* mVelocityData;
         TGraph* mTransDiffusionData;
         TGraph* mLongiDiffusionData;
 
+        // GEM data
         TF1* fGEMGainDist;
+
+        // Noise data
+        bool fIsNoiseOn;
+        TRandom3* fRandom;
+        TTree* fNoiseTree;
+        int fNoiseEventNum;
+        Double_t fNoiseTemplate[512];
+        Double_t fNoise[4][512]; // for AsAd
         
 };
 
