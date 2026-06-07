@@ -52,7 +52,7 @@ class TPCDrum : public LKDetector
         // FieldCage 
         const double fFieldCageLength = 200.; // field cage length
         const double fFieldCageHeight = 150.; // field cage height
-        const double fFieldCageSpacing = 6.; // distance between triple GEM surface and fieldcage
+        const double fFieldCageSpacing = 4.; // distance between triple GEM surface and fieldcage
         const double fFieldCageDownstreamWindowSizeX = 170.; // field cage downstream window size x-axis
         const double fFieldCageDownstreamWindowSizeY = 130.; // field cage downstream window size drift length axis
         const double fFieldCageUpstreamWindowSize = 50.; // field cage upstream window size
