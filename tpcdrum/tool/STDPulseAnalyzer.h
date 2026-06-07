@@ -56,7 +56,8 @@ class STDPulseAnalyzer
         void SetNextChannel(GETChannel* channel);
         struct ChannelHit GetChannelHit();
 
-        // double* GeneratePulse(double adc, double tb);
+        double GetPulseTemplate(int tb);
+        int GetPulseTemplateMaxTB(){return fPulseTemplateArrNum;}
 
     private:
         void InitAnalyzer();

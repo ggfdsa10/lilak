@@ -48,11 +48,11 @@ void STDPulseAnalyzer::SetNextChannel(GETChannel* channel)
 
 struct STDPulseAnalyzer::ChannelHit STDPulseAnalyzer::GetChannelHit(){return fChannelHit;}
 
-// double* STDPulseAnalyzer::GeneratePulse(double adc, double tb)
-// {
-//     double waveform[512];
-
-// }
+double STDPulseAnalyzer::GetPulseTemplate(int tb)
+{
+    if(tb < 0 || tb >= 300){return 0.;}
+    return fPulseTemplate[tb];
+}
 
 void STDPulseAnalyzer::InitAnalyzer()
 {
@@ -61,28 +61,31 @@ void STDPulseAnalyzer::InitAnalyzer()
 
 void STDPulseAnalyzer::InitPulseTemplate()
 {
-    TString currentPath = gSystem -> pwd();
-    int projectPathIndex = currentPath.Index("tpc-Drum/");
-    currentPath.Remove(projectPathIndex);
-    fPulseTemplatePath = currentPath + "tpc-Drum/common/";
+    TString dataPath = "";
+    if(fPar->CheckPar("TPCDrum/SimDataPath")){
+        dataPath = fPar->GetParString("TPCDrum/SimDataPath");
+        if(dataPath[dataPath.Sizeof()-1] != '/'){dataPath += "/";}
+    }
 
     double peakingTime = 502;
-    double tbUnit = 20;
+    double tbUnit = 40;
     if(fPar -> CheckPar("STDPulseAnalyzer/PeakingTime")){
         peakingTime = fPar -> GetParDouble("STDPulseAnalyzer/PeakingTime");
     }
     if(fPar -> CheckPar("TPCDrum/TimeBucketUnit")){
         tbUnit = fPar -> GetParDouble("TPCDrum/TimeBucketUnit");
     }
+    if(fPar -> CheckPar("TPCDrum/PulseShapeData")){
+        dataPath += fPar -> GetParString("TPCDrum/PulseShapeData");
+    }
 
-    TString pulseDataName = Form("%sPulse_template_%iPT_%ins.root", fPulseTemplatePath.Data(), int(peakingTime), int(tbUnit));
-    TFile* pulseFile = new TFile(pulseDataName, "read");
+    TFile* pulseFile = new TFile(dataPath, "read");
     if(!pulseFile->IsOpen()){
-        cout << "There is no " << pulseDataName << ", Turn on the Pulse shape analysis mode." << endl;
+        cout << "There is no " << dataPath << ", Turn on the Pulse shape analysis mode." << endl;
         fMakePulseShapeMode = true;
         return;
     }
-    cout << "Found a pulse data, " << pulseDataName << endl;
+    cout << "Found a pulse data, " << dataPath << endl;
 
     TTree* pulseTree = (TTree*)pulseFile -> Get("pulse");    
     pulseTree -> SetBranchAddress("template", &fPulseTemplate);
