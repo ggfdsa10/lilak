@@ -24,6 +24,7 @@ class LKMCTag : public LKContainer
 
         Int_t GetMCNum(int index=-1);
         Int_t GetMCID(int mcIdx=0, int index=-1);
+        Double_t GetMCWeight(int mcIdx=0, int index=-1);
         Double_t GetMCPurity(int mcIdx=0, int index=-1);
 
     ClassDef(LKMCTag, 1)

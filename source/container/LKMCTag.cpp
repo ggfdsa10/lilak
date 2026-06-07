@@ -77,6 +77,21 @@ Int_t LKMCTag::GetMCID(int mcIdx, int index)
     return -999;
 }
 
+Double_t LKMCTag::GetMCWeight(int mcIdx, int index)
+{
+    if (mcIdx >= GetMCNum(index)) return -999.;
+
+    int tmpIdx = 0;
+    for (auto i=0; i<fIndex.size(); i++)
+    {
+        if (fIndex[i] == index) {
+            if (tmpIdx == mcIdx) {return fWeight[i];}
+            tmpIdx++;
+        }
+    }
+    return -999.;
+}
+
 Double_t LKMCTag::GetMCPurity(int mcIdx, int index)
 {
     if (mcIdx >= GetMCNum(index)) return -999.;
