@@ -84,10 +84,6 @@ void STDDriftElectronMaker::Exec(Option_t *option)
             if(tb >= 512){continue;}
 
             fChannel = (GETChannel*)fPadPlane -> GetChannelFast(padID);
-            fChannel -> SetAsad(fPadPlane->GetAsAdID(padID));
-            fChannel -> SetAget(fPadPlane->GetAgetID(padID));
-            fChannel -> SetChan(fPadPlane->GetChanID(padID));
-            fChannel -> SetPadID(padID);
             fChannel -> GetBufferArray()[tb] += w;
 
             fMCTag = (LKMCTag*)fPadPlane -> GetMCTag(padID);
@@ -96,19 +92,16 @@ void STDDriftElectronMaker::Exec(Option_t *option)
     }
 
     // Save data
-    TIter itChannel(fPadPlane -> GetChannelArray());
-    int idx = 0;
-    while ((fChannel = (GETChannel*)itChannel.Next())) {    
-        fMCTag = (LKMCTag*)fPadPlane -> GetMCTag(idx);
-        fChannel -> Copy(*(GETChannel*)fChannelArray -> ConstructedAt(idx));
-        fMCTag -> Copy(*(LKMCTag*)fMCTagArray -> ConstructedAt(idx));
+    int padNum = fPadPlane -> GetPadNum();
+    for(int i=0; i<padNum; i++){
+        fChannel = (GETChannel*)fPadPlane -> GetChannelFast(i);
+        fMCTag = (LKMCTag*)fPadPlane -> GetMCTag(i);
+        fChannel -> Copy(*(GETChannel*)fChannelArray -> ConstructedAt(i));
+        fMCTag -> Copy(*(LKMCTag*)fMCTagArray -> ConstructedAt(i));
 
         fChannel -> Clear();
         fMCTag -> Clear();
-
-        idx++;
     }
-    
 }
 
 bool STDDriftElectronMaker::EndOfRun()
