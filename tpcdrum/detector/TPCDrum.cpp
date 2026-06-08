@@ -146,7 +146,7 @@ void TPCDrum::GetCoordinateGeantToPad(double& x, double& y, double& z)
     double shiftHeight = (padHeight+padGap)*(layerNum/2.-1.) + (padHeight+padGap)/2.;
     tmpY = tmpY + shiftHeight;
 
-    x = tmpX;
+    x = -1.*tmpX;
     y = tmpY;
     z = tmpZ;
 }
@@ -173,7 +173,7 @@ void TPCDrum::GetCoordinatePadToGeant(double& x, double& y, double& z)
     tmpY = tmpZ;
     tmpZ = tmpY2;
 
-    x = tmpX;
+    x = -1.*tmpX;
     y = tmpY;
     z = tmpZ;
 }
