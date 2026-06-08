@@ -44,8 +44,6 @@ bool STDDriftElectronMaker::Init()
 
 void STDDriftElectronMaker::Exec(Option_t *option)
 {
-    cout << " STDDriftElectronMaker " << endl;
-
     if(fIsNewChannelArray){
         fChannelArray -> Clear("C");
     }
@@ -114,7 +112,6 @@ void STDDriftElectronMaker::Exec(Option_t *option)
         fChannel -> Clear();
         fMCTag -> Clear();
     }
-    cout << " STDDriftElectronMaker done " << endl;
 }
 
 bool STDDriftElectronMaker::EndOfRun()
