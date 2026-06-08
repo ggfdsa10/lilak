@@ -58,6 +58,8 @@ class STDDriftElectronMaker : public LKTask
         LKMCTag* fMCTag;
         LKMCStep* fStep;
 
+        bool fIsNewChannelArray;
+
         double fElectronStepSize;
         bool fOnGatingGrid;
 

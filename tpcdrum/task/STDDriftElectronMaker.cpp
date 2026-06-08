@@ -3,6 +3,7 @@
 ClassImp(STDDriftElectronMaker);
 
 STDDriftElectronMaker::STDDriftElectronMaker()
+: fIsNewChannelArray(false)
 {
     fName = "STDDriftElectronMaker";
 }
@@ -12,11 +13,15 @@ bool STDDriftElectronMaker::Init()
     fDetector = (TPCDrum *) fRun -> GetDetector();
     fPadPlane = (STDPadPlane*) fDetector -> GetDetectorPlane();
 
-    fChannelArray = fRun -> RegisterBranchA("RawPad", "GETChannel");
-    fMCTagArray = fRun -> RegisterBranchA("MCTag", "LKMCTag");
-    
     fTrackArray = fRun -> KeepBranchA("MCTrack");
     fStepArray = fRun -> KeepBranchA("MCStepTPCDrum");
+
+    fChannelArray = fRun -> GetBranchA("RawPad");
+    if(fChannelArray == nullptr){
+        fChannelArray = fRun -> RegisterBranchA("RawPad", "GETChannel");
+        fIsNewChannelArray = true;
+    }
+    fMCTagArray = fRun -> RegisterBranchA("MCTagTPCDrum", "LKMCTag");
 
     fTBTime = 40.; // [ns]
     if(fPar -> CheckPar("TPCDrum/TimeBucketUnit")){
@@ -39,7 +44,11 @@ bool STDDriftElectronMaker::Init()
 
 void STDDriftElectronMaker::Exec(Option_t *option)
 {
-    fChannelArray -> Clear("C");
+    cout << " STDDriftElectronMaker " << endl;
+
+    if(fIsNewChannelArray){
+        fChannelArray -> Clear("C");
+    }
     fMCTagArray -> Clear("C");
 
     fRandom -> SetSeed(time(0));
@@ -84,6 +93,10 @@ void STDDriftElectronMaker::Exec(Option_t *option)
             if(tb >= 512){continue;}
 
             fChannel = (GETChannel*)fPadPlane -> GetChannelFast(padID);
+            fChannel -> SetAsad(fPadPlane->GetAsAdID(padID));
+            fChannel -> SetAget(fPadPlane->GetAgetID(padID));
+            fChannel -> SetChan(fPadPlane->GetChanID(padID));
+            fChannel -> SetPadID(padID);
             fChannel -> GetBufferArray()[tb] += w;
 
             fMCTag = (LKMCTag*)fPadPlane -> GetMCTag(padID);
@@ -98,10 +111,10 @@ void STDDriftElectronMaker::Exec(Option_t *option)
         fMCTag = (LKMCTag*)fPadPlane -> GetMCTag(i);
         fChannel -> Copy(*(GETChannel*)fChannelArray -> ConstructedAt(i));
         fMCTag -> Copy(*(LKMCTag*)fMCTagArray -> ConstructedAt(i));
-
         fChannel -> Clear();
         fMCTag -> Clear();
     }
+    cout << " STDDriftElectronMaker done " << endl;
 }
 
 bool STDDriftElectronMaker::EndOfRun()
