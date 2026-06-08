@@ -5,6 +5,7 @@
 #include "LKLogger.h"
 
 #include "STDPadPlane.h"
+#include "STDSiArray.h"
 
 class TPCDrum : public LKDetector
 {
@@ -27,8 +28,6 @@ class TPCDrum : public LKDetector
         double GetGatingGridGeantYPos(); // [mm] gating grid height along drift length (geant coordinate)
 
     private:
-        bool InitSiDetector();
-
         bool IsDeadChanForMainRun_OldZAP(int padID); // test !!!
 
         STDPadPlane* fPadPlane;
@@ -62,17 +61,6 @@ class TPCDrum : public LKDetector
         const double fGatingGridSupporterWidth = 20.; // gating grid boundary PCB supporter width
         const double fGatingGridActiveWidth = 18.; // gating grid wire area width 
         const double fGatingGridActivePCBWidth = 3.; // gating grid wire supporter PCB width
-
-        // Si detector 
-        static const int fSiDetNum = 8;
-        // const double fSiCaseHeight = 15.65;
-        const double fSiCaseWidth = 4.9; // Si case size around active area
-        const double fSiWidth = 40.3; // Si active width
-        const double fSiHeight = 75.; // Si active height
-        const double fSiThickness = 1.; // Si active thickness
-        const double fSiPlanePosAtPadPlaneCenter = 140.; // Si detectors x-z position with respect to pad plane center
-        double fSiDetectorCenter[fSiDetNum][2]; // [si detector num][x, z] in local pad coordinate
-        TString fSiDetectorName[fSiDetNum];
         
     ClassDef(TPCDrum,1);
 };

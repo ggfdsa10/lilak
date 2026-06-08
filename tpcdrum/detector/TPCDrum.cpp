@@ -10,7 +10,6 @@ TPCDrum::TPCDrum()
 
 
     fPadPlane = new STDPadPlane();
-    InitSiDetector();
 }
 
 bool TPCDrum::Init()
@@ -35,6 +34,7 @@ bool TPCDrum::BuildGeometry()
 bool TPCDrum::BuildDetectorPlane()
 {
     AddPlane(new STDPadPlane);
+    AddPlane(new STDSiArray);
     return true;
 }
 
@@ -190,41 +190,4 @@ double TPCDrum::GetGatingGridGeantYPos()
     double fieldCageCenterToBeamWindow = fFieldCageUpstreamWindowHeight - fFieldCageUpstreamWindowSize/2. - fFieldCageHeight/2.;
     double height = fieldCageHeight - fieldCageCenterToBeamWindow + fPCBThickness/2.;
     return height;
-}
-
-bool TPCDrum::InitSiDetector()
-{   
-    double awayBeamCenter = 22.; // [mm]
-    double leastDistance = 1.; // [mm]
-    double z = 175.; // [mm] start height
-    double beamCenterY = 130.; // [mm]
-
-    for(int i=0; i<fSiDetNum-2; i++){
-        if(i == 3){z = 175.;}
-        double sign = (i < 3)? -1. : +1.;
-        double x = sign*((fSiHeight+fSiCaseWidth)/2. +awayBeamCenter);
-        z -= (fSiWidth + fSiCaseWidth)/2.;
-        fSiDetectorCenter[i][0] = x;
-        fSiDetectorCenter[i][1] = z;
-
-        z -= (leastDistance + (fSiWidth + fSiCaseWidth)/2.);
-    }
-
-    for(int i=fSiDetNum-2; i<fSiDetNum; i++){
-        double sign = (i%2==0)? +1. : -1.;
-        double height = beamCenterY - sign*((fSiHeight+fSiCaseWidth)/2. +awayBeamCenter);
-        fSiDetectorCenter[i][0] = 0.;
-        fSiDetectorCenter[i][1] = height;
-    }
-
-    fSiDetectorName[0] = "SiDet_RU";
-    fSiDetectorName[1] = "SiDet_RM";
-    fSiDetectorName[2] = "SiDet_RD";
-    fSiDetectorName[3] = "SiDet_LU";
-    fSiDetectorName[4] = "SiDet_LM";
-    fSiDetectorName[5] = "SiDet_LD";
-    fSiDetectorName[6] = "SiDet_U";
-    fSiDetectorName[7] = "SiDet_D";
-
-    return true;
 }
