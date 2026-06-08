@@ -30,6 +30,7 @@
 
 #include "TPCDrum.h"
 #include "STDPadPlane.h"
+#include "STDSiArray.h"
 
 #include "DetectorConstruction.hh"
 #include "BeamReaction.hh"
@@ -57,7 +58,6 @@ class TPCDrumConstruction : public DetectorConstruction
         G4LogicalVolume* GetFieldCageUpStream();
         G4LogicalVolume* GetFieldCageDownStream();
         G4LogicalVolume* GetGatingGrid();
-        G4LogicalVolume* GetSiDetector(TString name);
 
         G4Material* GetGasMaterial(TString gasName);
         G4Material* GetSolidMaterial(TString name);

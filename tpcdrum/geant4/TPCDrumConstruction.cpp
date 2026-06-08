@@ -78,27 +78,35 @@ G4VPhysicalVolume* TPCDrumConstruction::Construct()
         }
     }
 
-
     // ========================== Silicon telespoce ================================
-    for(int i=0; i<fTPCDrum->fSiDetNum; i++){
-        TString siName = fTPCDrum->fSiDetectorName[i];
-        G4LogicalVolume* logicSi = GetSiDetector(siName);
+    STDSiArray* siArray = new STDSiArray();
+    siArray -> Init();
+    // for(int i=0; i<siArray->GetSiNum(); i++){
+    for(int i=0; i<3; i++){
+        double siWidth = siArray->GetSiWidth();
+        double siHeight = siArray->GetSiHeight();
+        double siThickness = siArray->GetSiThickness();
+        TString siName = siArray->GetSiName(i);
+        G4Box *solidSi = new G4Box(siName.Data(), siWidth *fHalfUnit, siHeight *fHalfUnit, siThickness *fHalfUnit);
+        G4Material* metSi = GetSolidMaterial("Si");
+        G4LogicalVolume* logicSi = new G4LogicalVolume(solidSi, metSi, siName.Data());
         logicSi -> SetVisAttributes(GetColor("YELLOW", 0.4));
-
-        double SiLocalPosX = fTPCDrum->fSiDetectorCenter[i][0];
-        double SiLocalPosZ = fTPCDrum->fSiDetectorCenter[i][1];
 
         double x = 0.;
         double y = 0.;
-        double z = fTPCDrum->fSiPlanePosAtPadPlaneCenter;
+        double z = siArray->GetSiArrayPlaneDistAtPadCenter();
+        
         fTPCDrum->GetCoordinateGeantToPad(x, y, z);
+        
+        double SiLocalPosX = siArray->GetSiCenterPos(i, 0);
         double SiLocalPosY = y;
+        double SiLocalPosZ = siArray->GetSiCenterPos(i, 1);
 
         fTPCDrum->GetCoordinatePadToGeant(SiLocalPosX, SiLocalPosY, SiLocalPosZ);
         double rotation = (i<6)? CLHEP::pi/2 : 0.;
 
-        auto pvpGatingGrid = new G4PVPlacement(new G4RotationMatrix(0., 0., rotation), G4ThreeVector(SiLocalPosX, SiLocalPosY, SiLocalPosZ), logicSi, siName.Data(), logicChamber, false, 12+i, true);
-        runManager -> SetSensitiveDetector(pvpGatingGrid);
+        auto pvpSi = new G4PVPlacement(new G4RotationMatrix(0., 0., rotation), G4ThreeVector(SiLocalPosX, SiLocalPosY, SiLocalPosZ), logicSi, siName.Data(), logicChamber, false, 12+i, true);
+        runManager -> SetSensitiveDetector(pvpSi);
     }
 
     // ====================== NPTool =======================
@@ -255,19 +263,6 @@ G4LogicalVolume* TPCDrumConstruction::GetGatingGrid()
 {
     G4VSolid* SolidGatingGrid = GetGatingGridVolume();
     return new G4LogicalVolume(SolidGatingGrid, GetSolidMaterial("PCB"), "GatingGrid");
-}
-
-G4LogicalVolume* TPCDrumConstruction::GetSiDetector(TString name)
-{   
-    const double siWidth = fTPCDrum->fSiWidth *mm;
-    const double siHeight = fTPCDrum->fSiHeight *mm;
-    const double siThickness = fTPCDrum->fSiThickness *mm;
-
-    G4Box *solidSi = new G4Box(name.Data(), siWidth *fHalfUnit, siHeight *fHalfUnit, siThickness *fHalfUnit);
-    G4Material* metSi = GetSolidMaterial("Si");
-    G4LogicalVolume* logicSi = new G4LogicalVolume(solidSi, metSi, name.Data());
-
-    return logicSi;
 }
 
 G4Material* TPCDrumConstruction::GetGasMaterial(TString gasName)
