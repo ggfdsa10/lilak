@@ -1,7 +1,3 @@
-// =====================================================
-// *           Sejong TPC-Drum Main Pld Plane          *
-// *           Author: Seunghwan Lee                   *
-// =====================================================
 
 #ifndef STDPADPALNE_HH
 #define STDPADPALNE_HH
@@ -57,6 +53,7 @@ class STDPadPlane : public LKDetectorPlane
         Double_t GetY(int layer, int row);
 
         Int_t GetFPNChannelID(int chan);
+        bool IsFPNChannel(int chan);
 
         Int_t GetAsAdNum();
         Int_t GetAGETNum();
@@ -84,14 +81,12 @@ class STDPadPlane : public LKDetectorPlane
         TH2* GetHist(Option_t *option="");
         void DrawFrame(Option_t *option="");
 
-        bool IsFPNChannel(int chan);
-
     private:
         void InitPadPlaneGeometry();
         void InitPadMapping();
         void InitChannelArray();
-        // void InitPadMapping();
 
+        // ====== TPC-Drum Pad-Plane Parameters ======
         const int fAsAdNum = 3;
         const int fAGETNum = 4;
         const int fChanNum = 68;
@@ -109,13 +104,13 @@ class STDPadPlane : public LKDetectorPlane
         static const int fLayerNum = 12; // number of layer
         static const int fRowNum = 64; // number of row
 
-        double fPadPosArray[fLayerNum][fRowNum][2]; // [layer][row][x, y]
+        // ====== TPC-Drum Pad-Plane Channel mapping structure ======
         map<pair<int, int>, pair<double, double>> fPadPosMap_lr; // pad position map using layer and row
         map<int, pair<double, double>> fPadPosMap_padIdx; // pad position map using pad index
         map<tuple<int, int, int>, pair<int, int>> fPadMap; // pad mapping array, [AsAd, AGET, Channel] to [layer, row]
 
-        TH2Poly* fPadPlanePoly = nullptr;
 
+        TH2Poly* fPadPlanePoly = nullptr;
         TObjArray* fMCTagArray = nullptr;
 
     ClassDef(STDPadPlane,1);

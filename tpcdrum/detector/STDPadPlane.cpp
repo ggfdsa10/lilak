@@ -136,6 +136,12 @@ Int_t STDPadPlane::GetFPNChannelID(int chan)
     return -1;
 }
 
+bool STDPadPlane::IsFPNChannel(int chan)
+{
+    if(chan == 11 || chan == 22 || chan == 45 || chan == 56){return true;}
+    return false;
+}
+
 Int_t STDPadPlane::GetAsAdNum(){return fAsAdNum;}
 Int_t STDPadPlane::GetAGETNum(){return fAGETNum;}
 Int_t STDPadPlane::GetChanNum(){return fChanNum;}
@@ -258,10 +264,4 @@ void STDPadPlane::InitChannelArray()
         LKMCTag* mcTag = new LKMCTag();
         fMCTagArray -> Add(mcTag);
     }
-}
-
-bool STDPadPlane::IsFPNChannel(int chan)
-{
-    if(chan == 11 || chan == 22 || chan == 45 || chan == 56){return true;}
-    return false;
 }
