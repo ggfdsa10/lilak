@@ -81,8 +81,7 @@ G4VPhysicalVolume* TPCDrumConstruction::Construct()
     // ========================== Silicon telespoce ================================
     STDSiArray* siArray = new STDSiArray();
     siArray -> Init();
-    // for(int i=0; i<siArray->GetSiNum(); i++){
-    for(int i=0; i<3; i++){
+    for(int i=0; i<siArray->GetSiNum(); i++){
         double siWidth = siArray->GetSiWidth();
         double siHeight = siArray->GetSiHeight();
         double siThickness = siArray->GetSiThickness();
@@ -97,7 +96,7 @@ G4VPhysicalVolume* TPCDrumConstruction::Construct()
         double z = siArray->GetSiArrayPlaneDistAtPadCenter();
         
         fTPCDrum->GetCoordinateGeantToPad(x, y, z);
-        
+
         double SiLocalPosX = siArray->GetSiCenterPos(i, 0);
         double SiLocalPosY = y;
         double SiLocalPosZ = siArray->GetSiCenterPos(i, 1);
