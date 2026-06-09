@@ -14,7 +14,10 @@ bool STDSiArray::Init()
     lk_info << "Initializing STDSiArray" << std::endl;
     
     InitSiArrayGeometry();
+    InitChannelMapping();
     InitChannelArray();
+
+    fPadPlane = new STDPadPlane();
 
     return true;
 }
@@ -53,13 +56,13 @@ Int_t STDSiArray::FindUnitPadID(Double_t x, Double_t z)
     return -1;
 }
 
-Int_t STDSiArray::GetStripIDFromPadID(int unitPadID)
+Int_t STDSiArray::GetStripID4PadID(int unitPadID)
 {
     if(unitPadID < 0 || unitPadID >= fStripNum*fOhmicNum){return -1;}
     return int(unitPadID/4);
 }
 
-Int_t STDSiArray::GetStripIDFromJuncID(int juncID)
+Int_t STDSiArray::GetStripID4JuncID(int juncID)
 {
     if(juncID < 0 || juncID >= fJuncNum){return -1;}
     juncID = juncID+1;
@@ -74,50 +77,166 @@ Int_t STDSiArray::GetOhmicID(int unitPadID)
     return int(unitPadID%4);
 }
 
+Int_t STDSiArray::GetUnitPadID(int ohmicID, int juncID)
+{
+    if(ohmicID < 0 || ohmicID >= fOhmicNum){return -1;}
+    int stripID = GetStripID4JuncID(juncID);
+    if(stripID == -1){return -1;}
+    return ohmicID+(stripID*fOhmicNum);
+}
+
 Int_t STDSiArray::GetSiDetID(int aget, int chan)
 {
-    int detID = -1;
-    int chanIdx = chan - GetFPNCountIdx(chan);
-
-    if(GetOhmicID(aget, chan) != -1){detID = chanIdx/fOhmicNum;}
-    else if(GetJuncID(aget, chan) != -1){detID = chanIdx/fJuncNum + (aget-1)*4;}
-
-    if(detID < 0 || detID >= fSiDetNum){return -1;}
-    return detID;
+    if(fChannelMap.find(make_pair(aget, chan)) != fChannelMap.end()){
+        return fChannelMap.find(make_pair(aget, chan))->second.first;
+    }
+    return -1;
 }
 
 Int_t STDSiArray::GetOhmicID(int aget, int chan)
 {
-    if(IsFPNChannel(chan)){return -1;}
     if(aget != 0){return -1;} // exclude junction channel aget
     if(chan > 33){return -1;} // end of 8th si detector
-
-    int fpnCountIdx = GetFPNCountIdx(chan);
-    int ohmicID = fOhmicNum - int((chan-fpnCountIdx)%4) -1; // starting from 0 index
-    return ohmicID;
+    if(fChannelMap.find(make_pair(0, chan)) != fChannelMap.end()){
+        return fChannelMap.find(make_pair(0, chan))->second.second;
+    }
+    return -1;
 }
 
 Int_t STDSiArray::GetJuncID(int aget, int chan)
 {
-    if(IsFPNChannel(chan)){return -1;}
-    if(aget <= 0){return -1;} // exclude ohmic channel aget
-    if(aget >= fAGETNum-1){return -1;} // end of 8th si detector
-
-    int fpnCountIdx = GetFPNCountIdx(chan);
-    int juncID = fJuncNum - int((chan-fpnCountIdx)%16) - 1;
-    return juncID;
+    if(0 < aget && aget < 3){ // only junction channel of 8th si detector
+        if(fChannelMap.find(make_pair(aget, chan)) != fChannelMap.end()){
+            return fChannelMap.find(make_pair(aget, chan))->second.second;
+        }
+    }
+    return -1;
 }
 
 Int_t STDSiArray::GetStripID(int aget, int chan)
 {
     int juncID = GetJuncID(aget, chan);
-    return GetStripIDFromJuncID(juncID);
+    return GetStripID4JuncID(juncID);
 }
 
-Double_t STDSiArray::GetX(int siDetID, int unitPadID){return fUnitPadPosMap_UnitPadIdx[siDetID].find(unitPadID)->second.first;}
-Double_t STDSiArray::GetX(int siDetID, int strip, int ohmic){return fUnitPadPosMap_so[siDetID].find(make_pair(strip, ohmic))->second.first;}
-Double_t STDSiArray::GetZ(int siDetID, int unitPadID){return fUnitPadPosMap_UnitPadIdx[siDetID].find(unitPadID)->second.second;}
-Double_t STDSiArray::GetZ(int siDetID, int strip, int ohmic){return fUnitPadPosMap_so[siDetID].find(make_pair(strip, ohmic))->second.second;}
+Int_t STDSiArray::GetAsAdID(int unitPadID){return 3;}
+
+Int_t STDSiArray::GetAGETID(int siDetID, bool isOhmic)
+{
+    if(isOhmic){return 0;}
+    if(siDetID<0 || siDetID>=fSiDetNum){return -1;}
+    if(siDetID < 4){return 1;}
+    return 2;
+}
+
+Int_t STDSiArray::GetChanID4Ohmic(int siDetID, int ohmicID)
+{
+    if(siDetID<0 || siDetID>=fSiDetNum){return -1;}
+    if(ohmicID<0 || ohmicID>=fOhmicNum){return -1;}
+    for(auto it = fChannelMap.begin(); it != fChannelMap.end(); ++it){
+        if(it->first.first != 0){continue;}
+        if((it->second).first == siDetID && (it->second).second == ohmicID){
+            return it->first.second;
+        }
+    }
+    return -1;
+}
+
+Int_t STDSiArray::GetChanID4Strip(int siDetID, int stripID, bool isFirstPairID)
+{
+    if(siDetID<0 || siDetID>=fSiDetNum){return -1;}
+    if(stripID<0 || stripID>=fStripNum){return -1;}
+    int tmpChanIdx = stripID*2 + 1;
+    if(isFirstPairID){tmpChanIdx = stripID*2;}
+    for(auto it = fChannelMap.begin(); it != fChannelMap.end(); ++it){
+        if(it->first.first == 0){continue;}
+        if((it->second).first == siDetID && (it->second).second == tmpChanIdx){
+            return it->first.second;
+        }
+    }
+    return -1;
+}
+
+Int_t STDSiArray::GetChannelIdx(int aget, int chan)
+{
+    if(aget < 0 || aget >= fAGETNum){return -1;}
+    if(chan < 0 || chan >= fChanNum){return -1;}
+    if(IsFPNChannel(chan)){return -1;}
+    int fpnCounts = 0;
+    if(chan >= 56){fpnCounts = 4;}
+    else if(chan >= 45){fpnCounts = 3;}
+    else if(chan >= 22){fpnCounts = 2;}
+    else if(chan >= 11){fpnCounts = 1;}
+
+    int chanIdx = chan+(aget*64) - fpnCounts;
+
+    if(chanIdx >= fAGETNum*64+1 || chanIdx < 0){return -1;}
+    return chanIdx;
+}
+
+Double_t STDSiArray::GetCenterUnitPadX(int siDetID, int unitPadID){return fUnitPadPosMap_UnitPadIdx[siDetID].find(unitPadID)->second.first;}
+Double_t STDSiArray::GetCenterUnitPadX(int siDetID, int strip, int ohmic){return fUnitPadPosMap_so[siDetID].find(make_pair(strip, ohmic))->second.first;}
+Double_t STDSiArray::GetCenterUnitPadZ(int siDetID, int unitPadID){return fUnitPadPosMap_UnitPadIdx[siDetID].find(unitPadID)->second.second;}
+Double_t STDSiArray::GetCenterUnitPadZ(int siDetID, int strip, int ohmic){return fUnitPadPosMap_so[siDetID].find(make_pair(strip, ohmic))->second.second;}
+
+void STDSiArray::ConvertSiLocalPos2Pad(int siDetID, double& x, double& y, double& z)
+{
+    double tmpX = x;
+    double tmpY = y;
+    double tmpZ = z;
+
+    double padHeight = fPadPlane->GetPadHeight();
+    double padGap = fPadPlane->GetPadGap();
+    double layerNum = fPadPlane->GetLayerNum();
+    double shiftY = (padHeight+padGap)*(layerNum/2.-1.) + (padHeight+padGap)/2.;
+    tmpY = fSiArrayPlaneDistAtPadCenter + shiftY;
+
+    double widthOfX = (siDetID < 6)? fSiHeight/double(fOhmicNum) : fSiWidth/double(fStripNum);
+    double widthOfZ = (siDetID < 6)? fSiWidth/double(fStripNum) : fSiHeight/double(fOhmicNum);
+    double shiftSignX = (siDetID < 3 || siDetID==6)? +1 : -1;
+    double shiftSignZ = (siDetID < 3 || siDetID==7)? -1 : +1;
+    double shiftX = GetCenterUnitPadX(siDetID, 0) + shiftSignX * widthOfX/2.;
+    double shiftZ = GetCenterUnitPadZ(siDetID, 0) + shiftSignZ * widthOfZ/2.;
+
+    if(siDetID==6 || siDetID==7){
+        tmpX = z;
+        tmpZ = x;
+    }
+    tmpX = shiftX - shiftSignX * tmpX;
+    tmpZ = shiftX - shiftSignZ * tmpZ;
+
+    x = tmpX;
+    y = tmpY;
+    z = tmpZ;
+}
+
+void STDSiArray::ConvertPad2SiLocalPos(int siDetID, double& x, double& y, double& z)
+{
+    double tmpX = x;
+    double tmpY = y;
+    double tmpZ = z;
+
+    tmpY = 0;
+
+    double widthOfX = (siDetID < 6)? fSiHeight/double(fOhmicNum) : fSiWidth/double(fStripNum);
+    double widthOfZ = (siDetID < 6)? fSiWidth/double(fStripNum) : fSiHeight/double(fOhmicNum);
+    double shiftSignX = (siDetID < 3 || siDetID==6)? +1 : -1;
+    double shiftSignZ = (siDetID < 3 || siDetID==7)? -1 : +1;
+    double shiftX = GetCenterUnitPadX(siDetID, 0) + shiftSignX * widthOfX/2.;
+    double shiftZ = GetCenterUnitPadZ(siDetID, 0) + shiftSignZ * widthOfZ/2.;
+
+    tmpX = shiftX - tmpX;
+    tmpZ = shiftZ - tmpZ;
+
+    x = fabs(tmpX);
+    y = tmpY;
+    z = fabs(tmpZ);
+    if(siDetID==6 || siDetID==7){
+        x = fabs(tmpZ);
+        z = fabs(tmpX);
+    }
+}
+
 
 Int_t STDSiArray::GetFPNChannelID(int chan)
 {
@@ -209,7 +328,7 @@ void STDSiArray::InitSiArrayGeometry()
         double SiSignX = (i < 3 || i==6)? -1. : +1.;
         double SiSignZ = (i < 3 || i==7)? +1. : -1.;
 
-        int unitPadIdx = 0;
+
         for(int s=0; s<fStripNum; s++){
             for(int o=0; o<fOhmicNum; o++){
                 // Si local coordinate defined at J1-O1 channel edge
@@ -219,6 +338,7 @@ void STDSiArray::InitSiArrayGeometry()
                     siLocalX = siUnitPadWidth/2. + s * siUnitPadWidth;
                     siLocalZ = siUnitPadHeight/2. + o * siUnitPadHeight;
                 }
+                int unitPadIdx = o+(s*fOhmicNum);
 
                 // Convert coordinate from Si-local to padplane-local
                 double siUnitPadCenterX = centerPosX +SiCoordSignX * siWidth/2. +SiSignX * siLocalX;
@@ -238,8 +358,36 @@ void STDSiArray::InitSiArrayGeometry()
                     boundaryZ[b] = siUnitPadCenterZ + zSign * siUnitPadHeight/2.;
                 }
                 fSiArrayPoly[i] -> AddBin(5, boundaryX, boundaryZ);
-                unitPadIdx++;
             }
+        }
+    }
+}
+
+void STDSiArray::InitChannelMapping()
+{
+    for(int aget=0; aget<fAGETNum-1; aget++){
+        if(aget >= 3){continue;}
+        bool isOhmic = (aget==0)? true : false;
+
+        int tmpChanIdx = 0;
+        for(int chan=0; chan<fChanNum; chan++){
+            if(IsFPNChannel(chan)){continue;}
+
+            int siDetIdx = -1;
+            int chanIdx = -1;
+            if(isOhmic){
+                if(chan > 33){break;}
+                siDetIdx = int(tmpChanIdx/fOhmicNum);
+                chanIdx = fOhmicNum - int(tmpChanIdx%4) -1;
+
+            }
+            else{
+                siDetIdx = tmpChanIdx/fJuncNum + (aget-1)*4;
+                chanIdx = fJuncNum - int(tmpChanIdx%16) - 1;
+            }
+
+            fChannelMap.insert({make_pair(aget, chan), make_pair(siDetIdx, chanIdx)});
+            tmpChanIdx++;
         }
     }
 }
@@ -257,19 +405,14 @@ void STDSiArray::InitChannelArray()
             channel -> SetAsad(3);
             channel -> SetAget(aget);
             channel -> SetChan(chan);
+            int juncID = GetJuncID(aget, chan);
+            int ohmicID = GetOhmicID(aget, chan);
+            int unitPadID = GetUnitPadID(ohmicID, juncID);
+            channel -> SetPadID(unitPadID);
             fChannelArray -> Add(channel);
 
             LKMCTag* mcTag = new LKMCTag();
             fMCTagArray -> Add(mcTag);
         }
     }
-}
-
-int STDSiArray::GetFPNCountIdx(int chan)
-{
-    if(chan > 56){return 4;}
-    else if(chan > 45){return 3;}
-    else if(chan > 22){return 2;}
-    else if(chan > 11){return 1;}
-    return 0;
 }

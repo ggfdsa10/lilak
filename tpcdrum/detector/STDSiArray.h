@@ -10,6 +10,7 @@
 #include <vector>
 #include "TH2Poly.h"
 
+#include "STDPadPlane.h"
 #include "GETChannel.h"
 #include "LKMCTag.h"
 
@@ -31,20 +32,30 @@ class STDSiArray : public LKDetectorPlane
         Int_t FindSiDetID(Double_t x, Double_t z);
         Int_t FindUnitPadID(Double_t x, Double_t z);
 
-        Int_t GetStripIDFromPadID(int unitPadID);
-        Int_t GetStripIDFromJuncID(int juncID);
+        Int_t GetStripID4PadID(int unitPadID);
+        Int_t GetStripID4JuncID(int juncID);
         Int_t GetOhmicID(int unitPadID);
+        Int_t GetUnitPadID(int ohmicID, int juncID);
 
         Int_t GetSiDetID(int aget, int chan);
         Int_t GetOhmicID(int aget, int chan);
         Int_t GetJuncID(int aget, int chan);
         Int_t GetStripID(int aget, int chan);
 
-        Double_t GetX(int siDetID, int unitPadID);
-        Double_t GetX(int siDetID, int strip, int ohmic);
+        Int_t GetAsAdID(int unitPadID);
+        Int_t GetAGETID(int siDetID, bool isOhmic=true);
+        Int_t GetChanID4Ohmic(int siDetID, int ohmicID);
+        Int_t GetChanID4Strip(int siDetID, int stripID, bool isFirstPairID);
+        Int_t GetChannelIdx(int aget, int chan);
 
-        Double_t GetZ(int siDetID, int unitPadID);
-        Double_t GetZ(int siDetID, int strip, int ohmic);
+        // Position of the center of unit pads in PadPlane coordinate
+        Double_t GetCenterUnitPadX(int siDetID, int unitPadID);
+        Double_t GetCenterUnitPadX(int siDetID, int strip, int ohmic);
+        Double_t GetCenterUnitPadZ(int siDetID, int unitPadID);
+        Double_t GetCenterUnitPadZ(int siDetID, int strip, int ohmic);
+
+        void ConvertSiLocalPos2Pad(int siDetID, double& x, double& y, double& z); // Convert position from Si-local coordinate (with respect to J1 channel coord.) to PadPlane coordinate
+        void ConvertPad2SiLocalPos(int siDetID, double& x, double& y, double& z); // Convert position from PadPlane coordinate to Si-local coordinate (with respect to J1 channel coord.)
 
         Int_t GetFPNChannelID(int chan);
         bool IsFPNChannel(int chan);
@@ -72,8 +83,8 @@ class STDSiArray : public LKDetectorPlane
 
     private:
         void InitSiArrayGeometry();
+        void InitChannelMapping();
         void InitChannelArray();
-        int GetFPNCountIdx(int chan);
 
         // ====== Si-Array Parameters ======
         const int fAsAdNum = 1;
@@ -97,9 +108,12 @@ class STDSiArray : public LKDetectorPlane
         // ====== Si-Array Channel mapping structure ======
         map<pair<int, int>, pair<double, double>> fUnitPadPosMap_so[fSiDetNum]; // UnitPad position map using strip and ohmic
         map<int, pair<double, double>> fUnitPadPosMap_UnitPadIdx[fSiDetNum]; // UnitPad position map using Unitad index
+        map<pair<int, int>, pair<int, int> > fChannelMap; // channel mapping array, [AGET, Channel] to ohmic or junction
 
         TH2Poly* fSiArrayPoly[fSiDetNum]; 
         TObjArray* fMCTagArray = nullptr;
+
+        STDPadPlane* fPadPlane;
 
     ClassDef(STDSiArray,1);
 };
