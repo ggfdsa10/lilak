@@ -13,7 +13,8 @@ bool STDElectronicsMaker::Init()
     fPadPlane = (STDPadPlane*) fDetector -> GetDetectorPlane();
 
     fChannelArray = fRun -> GetBranchA("RawPad");
-    fMCTagArray = fRun -> GetBranchA("MCTag");
+    fMCTagTPCArray = fRun -> GetBranchA("MCTagTPCDrum");
+    fMCTagSiArray = fRun -> GetBranchA("MCTagSiArray");
     fTrackArray = fRun -> GetBranchA("MCTrack");
 
     fDynamicRange = 240.; // [fC]
@@ -35,11 +36,15 @@ void STDElectronicsMaker::Exec(Option_t *option)
 
     const int trackNum = fTrackArray -> GetEntries();
     const int chanNum = fChannelArray -> GetEntries();
+    int tpcPadNum = fPadPlane -> GetPadNum();
     double trackWeights[trackNum][512];
 
     for(int chan=0; chan<chanNum; chan++){
         fChannel = (GETChannel*)fChannelArray -> At(chan);
-        fMCTag = (LKMCTag*)fMCTagArray -> At(chan);
+
+        bool isTPC = (chan <= tpcPadNum) ? false : true;
+        if(isTPC){fMCTag = (LKMCTag*)fMCTagTPCArray -> At(chan);}
+        else{fMCTag = (LKMCTag*)fMCTagSiArray -> At(chan);}
 
         memset(trackWeights, 0., sizeof(trackWeights));
 
@@ -52,7 +57,8 @@ void STDElectronicsMaker::Exec(Option_t *option)
             for(int id=0; id<mcNum; id++){
                 int mcTrkIDIdx = fMCTag -> GetMCID(id, tb) -1;
                 double purity = fMCTag -> GetMCPurity(id, tb);
-                trackWeights[mcTrkIDIdx][tb] = purity * ADC[tb] * fEChargeToADC;
+                if(isTPC){trackWeights[mcTrkIDIdx][tb] = purity * ADC[tb] * fEChargeToADC;}
+                else{trackWeights[mcTrkIDIdx][tb] = purity * ADC[tb];}
             }
         }
 
@@ -84,7 +90,22 @@ void STDElectronicsMaker::Exec(Option_t *option)
                 fMCTag -> AddMCWeightTag(trk+1, trkADC[tb], tb);
             }
         }
-        // Step4: Make the Noise
+
+        // Step4: If channel is for Si, make the ohmic and junction adc pulse
+        if(!isTPC){
+            int agetID = fChannel -> GetAget();
+            int chanID = fChannel -> GetChan();
+            int ohmicID = fSiArray -> GetOhmicID(agetID, chanID);
+            // make the negetive charge for junction channe;
+            if(ohmicID == -1){ 
+                for(int tb=0; tb<512; tb++){
+                    ADC[tb] = -ADC[tb];
+                    ADC[tb] += fADCMaxAmp;
+                }
+            }
+        }
+
+        // Step5: Make the Noise
         int asadID = fChannel -> GetAsad();
         fTuneManager -> AddChannelNoise(asadID, ADC);
     }

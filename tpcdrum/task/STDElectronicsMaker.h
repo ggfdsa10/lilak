@@ -15,6 +15,7 @@
 
 #include "TPCDrum.h"
 #include "STDPadPlane.h"
+#include "STDSiArray.h"
 #include "STDSimTuningManager.h"
 #include "STDPulseAnalyzer.h"
 
@@ -33,12 +34,14 @@ class STDElectronicsMaker : public LKTask
     private:
         TPCDrum *fDetector;
         STDPadPlane *fPadPlane;
+        STDSiArray *fSiArray;
 
         STDSimTuningManager* fTuneManager;
         STDPulseAnalyzer* fPulseAnalyzer;
 
         TClonesArray* fChannelArray;
-        TClonesArray* fMCTagArray;
+        TClonesArray* fMCTagTPCArray;
+        TClonesArray* fMCTagSiArray;
         TClonesArray* fTrackArray;
 
         GETChannel* fChannel;
