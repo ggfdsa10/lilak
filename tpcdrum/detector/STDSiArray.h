@@ -42,8 +42,8 @@ class STDSiArray : public LKDetectorPlane
         Int_t GetJuncID(int aget, int chan);
         Int_t GetStripID(int aget, int chan);
 
-        Int_t GetAsAdID(int unitPadID);
-        Int_t GetAGETID(int siDetID, bool isOhmic=true);
+        Int_t GetAsAdID();
+        Int_t GetAgetID(int siDetID, bool isOhmic=true);
         Int_t GetChanID4Ohmic(int siDetID, int ohmicID);
         Int_t GetChanID4Strip(int siDetID, int stripID, bool isFirstPairID);
         Int_t GetChannelIdx(int aget, int chan);
@@ -61,7 +61,7 @@ class STDSiArray : public LKDetectorPlane
         bool IsFPNChannel(int chan);
 
         Int_t GetAsAdNum(){return fAsAdNum;}
-        Int_t GetAGETNum(){return fAGETNum;}
+        Int_t GetAgetNum(){return fAGETNum;}
         Int_t GetChanNum(){return fChanNum;}
         
         Int_t GetSiNum(){return fSiDetNum;}

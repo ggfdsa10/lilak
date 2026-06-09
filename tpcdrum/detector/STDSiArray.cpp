@@ -41,7 +41,7 @@ bool STDSiArray::IsInBoundary(Double_t x, Double_t z)
 Int_t STDSiArray::FindSiDetID(Double_t x, Double_t z)
 {
     for(int i=0; i<fSiDetNum; i++){
-        int unitPadID = fSiArrayPoly[i] -> FindBin(x+0.0001, z+0.0001);
+        int unitPadID = fSiArrayPoly[i] -> FindBin(x, z);
         if(unitPadID > 0){return i;}
     }
     return -1;
@@ -50,7 +50,7 @@ Int_t STDSiArray::FindSiDetID(Double_t x, Double_t z)
 Int_t STDSiArray::FindUnitPadID(Double_t x, Double_t z)
 {
     for(int i=0; i<fSiDetNum; i++){
-        int unitPadID = fSiArrayPoly[i] -> FindBin(x+0.0001, z+0.0001);
+        int unitPadID = fSiArrayPoly[i] -> FindBin(x, z);
         if(unitPadID > 0){return unitPadID-1;}
     }
     return -1;
@@ -119,9 +119,9 @@ Int_t STDSiArray::GetStripID(int aget, int chan)
     return GetStripID4JuncID(juncID);
 }
 
-Int_t STDSiArray::GetAsAdID(int unitPadID){return 3;}
+Int_t STDSiArray::GetAsAdID(){return 3;}
 
-Int_t STDSiArray::GetAGETID(int siDetID, bool isOhmic)
+Int_t STDSiArray::GetAgetID(int siDetID, bool isOhmic)
 {
     if(isOhmic){return 0;}
     if(siDetID<0 || siDetID>=fSiDetNum){return -1;}
