@@ -1,0 +1,171 @@
+#include "STDSiResponseMaker.h"
+
+ClassImp(STDSiResponseMaker);
+
+STDSiResponseMaker::STDSiResponseMaker()
+: fIsNewChannelArray(false)
+{
+    fName = "STDSiResponseMaker";
+}
+
+bool STDSiResponseMaker::Init()
+{
+    fDetector = (TPCDrum *) fRun -> GetDetector();
+    fSiArray = (STDSiArray*) fDetector -> GetDetectorPlane(1);
+    fPadPlane = (STDPadPlane*)fDetector -> GetDetectorPlane(0);
+
+    fTrackArray = fRun -> KeepBranchA("MCTrack");
+    for(int si=0; si<fSiArray->GetSiNum(); si++){
+        fStepArray.push_back(fRun->GetBranchA("MCStep"+fSiArray->GetSiName(si)));
+    }
+
+    fChannelArray = fRun -> GetBranchA("RawPad");
+    if(fChannelArray == nullptr){
+        fChannelArray = fRun -> RegisterBranchA("RawPad", "GETChannel");
+        fIsNewChannelArray = true;
+    }
+    fMCTagArray = fRun -> RegisterBranchA("MCTagSiArray", "LKMCTag");
+
+    fTBTime = 40.; // [ns]
+    if(fPar -> CheckPar("TPCDrum/TimeBucketUnit")){
+        fTBTime = fPar -> GetParDouble("TPCDrum/TimeBucketUnit");
+    }
+    fTuneManager = STDSimTuningManager::GetSimTuningManager();
+
+    fRandom = new TRandom3(0);
+    
+    return true;
+}
+
+void STDSiResponseMaker::Exec(Option_t *option)
+{
+    if(fIsNewChannelArray){
+        fChannelArray -> Clear("C");
+    }
+    fMCTagArray -> Clear("C");
+
+    for(int si=0; si<fSiArray->GetSiNum(); si++){
+        int stepNum = fStepArray[si] -> GetEntries();
+
+        for(int i=0; i<stepNum; i++){
+            fStep = (LKMCStep*)fStepArray[si] -> UncheckedAt(i);
+
+            // Convert coordinate from Geant system to local pad system
+            ConvertCoordinateGeantToPad();
+
+            double x = fStep -> GetX();
+            double y = fStep -> GetY();
+            double z = fStep -> GetZ();
+            double t = fStep -> GetTime();
+            double e = fStep -> GetEdep(); // [MeV]
+            int trackId = fStep -> GetTrackID();
+
+            int siDetID = fSiArray -> FindSiDetID(x, z);
+            int siUnitPadID = fSiArray -> FindUnitPadID(x, z);
+
+            unsigned int tb = t/fTBTime;
+            if(tb >= 512){continue;}
+
+            // ============== Ohmic channels ===============
+            int ohmicIdx = fSiArray -> GetOhmicID(siUnitPadID);
+            int ohmicChanID = fSiArray -> GetChanID4Ohmic(siDetID, ohmicIdx);
+            int channelIdx_ohmic = fSiArray -> GetChannelIdx(0, ohmicChanID);
+
+            double ohmicEnergy = e;
+            MakeOhmicResponse(ohmicEnergy);
+
+            fChannel = (GETChannel*)fSiArray -> GetChannelFast(channelIdx_ohmic);
+            fChannel -> GetBufferArray()[tb] += ohmicEnergy;
+
+            fMCTag = (LKMCTag*)fSiArray -> GetMCTag(channelIdx_ohmic);
+            fMCTag -> AddMCWeightTag(trackId, ohmicEnergy, tb);
+
+            // ============== Junction channels ===============
+            int stripID = fSiArray -> GetStripID4PadID(siUnitPadID);
+            int juncChanID1 = fSiArray -> GetChanID4Strip(siDetID, stripID, true);
+            int juncChanID2 = fSiArray -> GetChanID4Strip(siDetID, stripID, false);
+            int agetID = fSiArray -> GetAGETID(siDetID, false);
+            int channelIdx_junc1 = fSiArray -> GetChannelIdx(agetID, juncChanID1);
+            int channelIdx_junc2 = fSiArray -> GetChannelIdx(agetID, juncChanID2);
+
+            double juncEnergy1 = 0;
+            double juncEnergy2 = 0;
+            MakeJunctionResponse(siDetID, x, z, e, juncEnergy1, juncEnergy2);
+
+            // Junction first pair channel
+            fChannel = (GETChannel*)fSiArray -> GetChannelFast(channelIdx_junc1);
+            fChannel -> GetBufferArray()[tb] += juncEnergy1;
+
+            fMCTag = (LKMCTag*)fSiArray -> GetMCTag(channelIdx_junc1);
+            fMCTag -> AddMCWeightTag(trackId, juncEnergy1, tb);
+
+            // Junction second pair channel
+            fChannel = (GETChannel*)fSiArray -> GetChannelFast(channelIdx_junc2);
+            fChannel -> GetBufferArray()[tb] += juncEnergy2;
+
+            fMCTag = (LKMCTag*)fSiArray -> GetMCTag(channelIdx_junc2);
+            fMCTag -> AddMCWeightTag(trackId, juncEnergy2, tb);
+        }
+    }
+
+    // Save data
+    int chanIdx = 0;
+    for(int aget=0; aget<fSiArray->GetAGETNum(); aget++){
+        for(int chan=0; chan<fSiArray->GetChanNum(); chan++){
+            fChannel = (GETChannel*)fSiArray -> GetChannelFast(chanIdx);
+            fMCTag = (LKMCTag*)fSiArray -> GetMCTag(chanIdx);
+
+            int padNum = fPadPlane -> GetPadNum();
+            fChannel -> Copy(*(GETChannel*)fChannelArray -> ConstructedAt(padNum+chanIdx));
+            fMCTag -> Copy(*(LKMCTag*)fMCTagArray -> ConstructedAt(chanIdx));
+
+            fChannel -> Clear();
+            fMCTag -> Clear();
+            chanIdx++;
+        }
+    }
+}
+
+bool STDSiResponseMaker::EndOfRun()
+{
+    return true;
+}
+
+void STDSiResponseMaker::ConvertCoordinateGeantToPad()
+{
+    double x = fStep -> GetX();
+    double y = fStep -> GetY();
+    double z = fStep -> GetZ();
+
+    fDetector -> GetCoordinateGeantToPad(x, y, z);
+
+    fStep -> SetX(x);
+    fStep -> SetY(y);
+    fStep -> SetZ(z);
+}
+
+void STDSiResponseMaker::MakeOhmicResponse(double& e)
+{
+    double energy = e/2.; // set the ohmic accumulate energy as half
+    const double energyResolution = 1.; // [MeV], 1 MeV resolution at MeV scale
+    energy = fRandom -> Gaus(energy, energyResolution);
+    e = energy;
+}
+
+void STDSiResponseMaker::MakeJunctionResponse(int siDetID, double x, double z, double e, double& junc1Energy, double& junc2Energy)
+{
+    double tmpX = x;
+    double tmpY = 0;
+    double tmpZ = z;
+    fSiArray -> ConvertPad2SiLocalPos(siDetID, tmpX, tmpY, tmpZ); 
+
+    double energy = e/2.; // set the junction accumulate energy as half
+    const double energyResolution = 1.; // [MeV], 1 MeV resolution at MeV scale
+    energy = fRandom -> Gaus(energy, energyResolution);
+
+    double energyRatioSecond = tmpX/fSiArray->GetSiHeight();
+    double energyRatioFirst = 1. - energyRatioSecond;
+
+    junc1Energy = energy * energyRatioFirst;
+    junc2Energy = energy * energyRatioSecond;
+}
