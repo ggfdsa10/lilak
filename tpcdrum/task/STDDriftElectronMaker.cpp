@@ -27,6 +27,10 @@ bool STDDriftElectronMaker::Init()
     if(fPar -> CheckPar("TPCDrum/TimeBucketUnit")){
         fTBTime = fPar -> GetParDouble("TPCDrum/TimeBucketUnit");
     }
+    fPulseDelay = 80.;
+    if(fPar -> CheckPar("TPCDrum/PulseDelay")){
+        fPulseDelay = fPar -> GetParDouble("TPCDrum/PulseDelay");
+    }
 
     fRandom = new TRandom3(0);
 
@@ -87,20 +91,19 @@ void STDDriftElectronMaker::Exec(Option_t *option)
             int padID = fPadPlane -> FindPadID(x, y);
             if(padID < 0){continue;}
 
-            unsigned int tb = t/fTBTime;
+            unsigned int tb = t/fTBTime + fPulseDelay;
             if(tb >= 512){continue;}
 
             fChannel = (GETChannel*)fPadPlane -> GetChannelFast(padID);
-            fChannel -> SetAsad(fPadPlane->GetAsAdID(padID));
-            fChannel -> SetAget(fPadPlane->GetAgetID(padID));
-            fChannel -> SetChan(fPadPlane->GetChanID(padID));
-            fChannel -> SetPadID(padID);
             fChannel -> GetBufferArray()[tb] += w;
 
             fMCTag = (LKMCTag*)fPadPlane -> GetMCTag(padID);
             fMCTag -> AddMCTag(trackId, tb);
         }
     }
+
+    int tmpADC[512];
+    memset(tmpADC, 0., sizeof(tmpADC));
 
     // Save data
     int padNum = fPadPlane -> GetPadNum();
@@ -109,7 +112,8 @@ void STDDriftElectronMaker::Exec(Option_t *option)
         fMCTag = (LKMCTag*)fPadPlane -> GetMCTag(i);
         fChannel -> Copy(*(GETChannel*)fChannelArray -> ConstructedAt(i));
         fMCTag -> Copy(*(LKMCTag*)fMCTagArray -> ConstructedAt(i));
-        fChannel -> Clear();
+
+        fChannel -> SetWaveformY(tmpADC);
         fMCTag -> Clear();
     }
 }

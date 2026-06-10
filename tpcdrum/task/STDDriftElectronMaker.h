@@ -66,6 +66,7 @@ class STDDriftElectronMaker : public LKTask
         TVector3 fElectronUnitVec;
         TVector3 fOthogonalUnitVec;
         double fTBTime;
+        double fPulseDelay;
 
     ClassDef(STDDriftElectronMaker, 1)
 };
