@@ -27,7 +27,7 @@ TPCDrum/
     ElectronStepSize  4.    # Drift electron step size [mm], default 1 mm 
     TimeBucketUnit    40    # Time bucket unit secends [ns], default 40 ns
     DynamicRange      240   # ADC Dynamic range [120, 240, 1000, 10000] [fC], default  240 fC
-    PulseDelay        100   # first pulse Peaking time delay [TB], default 100 TB
+    PulseDelay        80   # first pulse Peaking time delay [TB], default 80 TB
     TriggerDelay      0     # TPC TB delay with respect to Si trigger (To be update)
      
     ##### Data path #####
