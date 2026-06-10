@@ -10,7 +10,8 @@ STDElectronicsMaker::STDElectronicsMaker()
 bool STDElectronicsMaker::Init()
 {
     fDetector = (TPCDrum *) fRun -> GetDetector();
-    fPadPlane = (STDPadPlane*) fDetector -> GetDetectorPlane();
+    fPadPlane = (STDPadPlane*) fDetector -> GetDetectorPlane(0);
+    fSiArray = (STDSiArray*) fDetector -> GetDetectorPlane(1);
 
     fChannelArray = fRun -> GetBranchA("RawPad");
     fMCTagTPCArray = fRun -> GetBranchA("MCTagTPCDrum");
@@ -42,9 +43,15 @@ void STDElectronicsMaker::Exec(Option_t *option)
     for(int chan=0; chan<chanNum; chan++){
         fChannel = (GETChannel*)fChannelArray -> At(chan);
 
-        bool isTPC = (chan <= tpcPadNum) ? false : true;
-        if(isTPC){fMCTag = (LKMCTag*)fMCTagTPCArray -> At(chan);}
-        else{fMCTag = (LKMCTag*)fMCTagSiArray -> At(chan);}
+        bool isTPC = (chan <= tpcPadNum) ? true : false;
+        if(isTPC){
+            if(fMCTagTPCArray == nullptr){continue;}
+            fMCTag = (LKMCTag*)fMCTagTPCArray -> At(chan);
+        }
+        else{
+            if(fMCTagSiArray == nullptr){continue;}
+            fMCTag = (LKMCTag*)fMCTagSiArray -> At(chan-tpcPadNum);
+        }
 
         memset(trackWeights, 0., sizeof(trackWeights));
 
@@ -58,7 +65,7 @@ void STDElectronicsMaker::Exec(Option_t *option)
                 int mcTrkIDIdx = fMCTag -> GetMCID(id, tb) -1;
                 double purity = fMCTag -> GetMCPurity(id, tb);
                 if(isTPC){trackWeights[mcTrkIDIdx][tb] = purity * ADC[tb] * fEChargeToADC;}
-                else{trackWeights[mcTrkIDIdx][tb] = purity * ADC[tb];}
+                else{trackWeights[mcTrkIDIdx][tb] = purity * ADC[tb] * 200.;} // ADC = 200 * energy, it's arbitraty Si response function
             }
         }
 
@@ -75,6 +82,7 @@ void STDElectronicsMaker::Exec(Option_t *option)
             // Final pulse will be accmulated in ADC array
             for(int tb=0; tb<512; tb++){
                 double w = trackWeights[trk][tb];
+                if(w <= 0.1){continue;}
 
                 // Small pulse generation loop
                 for(int tb2=0; tb2<300; tb2++){ 
