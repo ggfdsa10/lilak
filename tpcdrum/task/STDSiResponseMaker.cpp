@@ -30,17 +30,28 @@ bool STDSiResponseMaker::Init()
     if(fPar -> CheckPar("TPCDrum/TimeBucketUnit")){
         fTBTime = fPar -> GetParDouble("TPCDrum/TimeBucketUnit");
     }
+    fPulseDelay = 80.;
+    if(fPar -> CheckPar("TPCDrum/PulseDelay")){
+        fPulseDelay = fPar -> GetParDouble("TPCDrum/PulseDelay");
+    }
+
     fTuneManager = STDSimTuningManager::GetSimTuningManager();
 
     fRandom = new TRandom3(0);
-    
+
     return true;
 }
 
 void STDSiResponseMaker::Exec(Option_t *option)
 {
+    int tpcPadNum = fPadPlane -> GetPadNum();
     if(fIsNewChannelArray){
         fChannelArray -> Clear("C");
+
+        // Make the tpc channel part
+        for(int i=0; i<tpcPadNum; i++){
+            fChannelArray -> ConstructedAt(i);
+        }
     }
     fMCTagArray -> Clear("C");
 
@@ -63,7 +74,7 @@ void STDSiResponseMaker::Exec(Option_t *option)
             int siDetID = fSiArray -> FindSiDetID(x, z);
             int siUnitPadID = fSiArray -> FindUnitPadID(x, z);
 
-            unsigned int tb = t/fTBTime;
+            unsigned int tb = t/fTBTime + fPulseDelay;
             if(tb >= 512){continue;}
 
             // ============== Ohmic channels ===============
@@ -84,7 +95,7 @@ void STDSiResponseMaker::Exec(Option_t *option)
             int stripID = fSiArray -> GetStripID4PadID(siUnitPadID);
             int juncChanID1 = fSiArray -> GetChanID4Strip(siDetID, stripID, true);
             int juncChanID2 = fSiArray -> GetChanID4Strip(siDetID, stripID, false);
-            int agetID = fSiArray -> GetAGETID(siDetID, false);
+            int agetID = fSiArray -> GetAgetID(siDetID, false);
             int channelIdx_junc1 = fSiArray -> GetChannelIdx(agetID, juncChanID1);
             int channelIdx_junc2 = fSiArray -> GetChannelIdx(agetID, juncChanID2);
 
@@ -108,18 +119,20 @@ void STDSiResponseMaker::Exec(Option_t *option)
         }
     }
 
+    int tmpADC[512];
+    memset(tmpADC, 0., sizeof(tmpADC));
+
     // Save data
     int chanIdx = 0;
-    for(int aget=0; aget<fSiArray->GetAGETNum(); aget++){
-        for(int chan=0; chan<fSiArray->GetChanNum(); chan++){
+    for(int aget=0; aget<fSiArray->GetAgetNum(); aget++){
+        for(int chan=0; chan<fSiArray->GetChanNum()-4; chan++){
             fChannel = (GETChannel*)fSiArray -> GetChannelFast(chanIdx);
             fMCTag = (LKMCTag*)fSiArray -> GetMCTag(chanIdx);
 
-            int padNum = fPadPlane -> GetPadNum();
-            fChannel -> Copy(*(GETChannel*)fChannelArray -> ConstructedAt(padNum+chanIdx));
+            fChannel -> Copy(*(GETChannel*)fChannelArray -> ConstructedAt(tpcPadNum+chanIdx));
             fMCTag -> Copy(*(LKMCTag*)fMCTagArray -> ConstructedAt(chanIdx));
 
-            fChannel -> Clear();
+            fChannel -> SetWaveformY(tmpADC);
             fMCTag -> Clear();
             chanIdx++;
         }

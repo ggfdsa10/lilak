@@ -53,6 +53,7 @@ class STDSiResponseMaker : public LKTask
         LKMCStep* fStep;
 
         double fTBTime;
+        double fPulseDelay;
 
     ClassDef(STDSiResponseMaker, 1)
 };
