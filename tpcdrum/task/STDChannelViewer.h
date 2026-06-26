@@ -28,34 +28,28 @@ class STDChannelViewer : public LKTask
         void Exec(Option_t*);
         bool EndOfRun();
 
-        void SetRunNumber(TString run){runNum = run;}
+        bool OnEventFigure(){fIsOnEventFigure = true;}
+
+        void SetRunNumber(TString run){fRunNum = run;}
 
     private:
         TPCDrum *fDetector = nullptr;
         STDPadPlane *fPadPlane = nullptr;
 
-        TClonesArray* fHitArray = nullptr;
-        LKHit* fHit = nullptr;
+        TClonesArray* fChannelArray = nullptr;
+        GETChannel* fChannel = nullptr;
 
         // test
+        bool fIsOnEventFigure;
         TCanvas* cEvent = nullptr;
         TH2Poly* hPoly = nullptr;
         TH2Poly* hBoundary = nullptr;
 
-        TGraph* gCluster = nullptr;
-        TF1* hFitter = nullptr;
-        TH1I* hHitNum = nullptr;
-        TH1I* hRowHitNum = nullptr;
+        TH1D* hHitNum = nullptr;
         TH1D* hSumADC = nullptr;
-        TH2D* hHitADC = nullptr;
+        TH2D* hChannel = nullptr;
 
-        TFile* outFile;
-        TTree* outTree;
-        double fit[3]; // [p0, p1, limit y pos]
-
-        TString runNum;
-
-
+        TString fRunNum;
 
 
     ClassDef(STDChannelViewer, 1)
