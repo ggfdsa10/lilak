@@ -174,6 +174,19 @@ Int_t STDSiArray::GetChannelIdx(int aget, int chan)
     return chanIdx;
 }
 
+bool STDSiArray::IsOhmic(int aget, int chan)
+{
+    if(aget != 0){return false;}
+    if(GetOhmicID(aget, chan) == -1){return false;}
+    return true;
+}
+bool STDSiArray::IsJunction(int aget, int chan)
+{
+    if(aget == 0){return false;}
+    if(GetJuncID(aget, chan) == -1){return false;}
+    return true;
+}
+
 Double_t STDSiArray::GetCenterUnitPadX(int siDetID, int unitPadID){return fUnitPadPosMap_UnitPadIdx[siDetID].find(unitPadID)->second.first;}
 Double_t STDSiArray::GetCenterUnitPadX(int siDetID, int strip, int ohmic){return fUnitPadPosMap_so[siDetID].find(make_pair(strip, ohmic))->second.first;}
 Double_t STDSiArray::GetCenterUnitPadZ(int siDetID, int unitPadID){return fUnitPadPosMap_UnitPadIdx[siDetID].find(unitPadID)->second.second;}

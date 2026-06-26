@@ -48,6 +48,9 @@ class STDSiArray : public LKDetectorPlane
         Int_t GetChanID4Strip(int siDetID, int stripID, bool isFirstPairID);
         Int_t GetChannelIdx(int aget, int chan);
 
+        bool IsOhmic(int aget, int chan);
+        bool IsJunction(int aget, int chan);
+
         // Position of the center of unit pads in PadPlane coordinate
         Double_t GetCenterUnitPadX(int siDetID, int unitPadID);
         Double_t GetCenterUnitPadX(int siDetID, int strip, int ohmic);
