@@ -11,8 +11,12 @@
 
 #include "TPCDrum.h"
 #include "STDPadPlane.h"
+#include "STDSiArray.h"
+
 #include "GETChannel.h"
 #include "TClonesArray.h"
+
+#include "STDEventDrawingMaker.h"
 
 #include "TH1D.h"
 #include "TProfile.h"
@@ -36,10 +40,13 @@ class STDNoiseSubtractor : public LKTask
         void SaveNoiseTemplate();
 
         TPCDrum *fDetector = nullptr;
-        STDPadPlane *fDetectorPlane = nullptr;
+        STDPadPlane *fPadPlane = nullptr;
+        STDSiArray *fSiArray = nullptr;
 
         TClonesArray* fChannelArray = nullptr;
         GETChannel* fChannel = nullptr;
+
+        int fSiArrayAsAdID;
 
         TH1D* fADCTmp = nullptr;
         TH2D* fADCTemplate[ASADNUM];
@@ -51,11 +58,6 @@ class STDNoiseSubtractor : public LKTask
         Double_t fNoiseData[TIMEBUCKET];
 
         bool fOnDrawRawADC;
-        TCanvas* cRawPad = nullptr;
-        TH2Poly* hBoundary = nullptr;
-        TH2Poly* hPolyADC_subt = nullptr;
-        TH2Poly* hPolyTime_subt = nullptr;
-        TH2D* hPolyTime_Y = nullptr;
         TH2D* hTB_subt = nullptr;
 
         TH1D* hTestTB;

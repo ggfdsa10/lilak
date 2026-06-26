@@ -11,8 +11,15 @@ STDNoiseSubtractor::STDNoiseSubtractor()
 bool STDNoiseSubtractor::Init()
 {
     fDetector = (TPCDrum *) fRun -> GetDetector();
-    fDetectorPlane = (STDPadPlane*) fDetector -> GetDetectorPlane();
+    fPadPlane = (STDPadPlane*) fDetector -> GetDetectorPlane(0);
+    fSiArray = (STDSiArray*) fDetector -> GetDetectorPlane(1);
+
     fChannelArray = fRun -> GetBranchA("RawPad");
+
+    fSiArrayAsAdID = 3; 
+    if(fPar -> CheckPar("TPCDrum/SiArrayAsAdID")){
+        fSiArrayAsAdID = fPar -> GetParInt("TPCDrum/SiArrayAsAdID");
+    }
 
     fADCTmp = new TH1D("ADCTmp", "", 512, 0, 512);
     for(int asad=0; asad<4; asad++){
@@ -33,30 +40,9 @@ bool STDNoiseSubtractor::Init()
 
     if(fOnDrawRawADC){
         cout << "STDNoiseSubtractor::Init() -- " << "Drawing mode ON "<< endl;
-        double x[4] = {-100., -100., 100., 100.};
-        double y[4] = {-34., 166., 166., -34.};
-
-        hBoundary = new TH2Poly();
-        hBoundary -> SetStats(0);
-        hBoundary -> SetTitle("Pad ADC (Noise Subtraction); x [mm]; y [mm]");
-        hBoundary -> AddBin(4, x, y);
-
-        hPolyADC_subt = fDetectorPlane -> GetPadPlanePoly();
-        hPolyADC_subt -> GetZaxis() -> SetRangeUser(10., 4000);
-        hPolyADC_subt -> SetTitle("Pad ADC (Noise Subtraction); x [mm]; y [mm]");
-
-        hPolyTime_subt = (TH2Poly*)hPolyADC_subt->Clone("polyTime_subt");
-        hPolyTime_subt -> GetZaxis() -> SetRangeUser(1., 512.);
-        hPolyTime_subt -> SetTitle("Pad Time (Noise Subtraction); x [mm]; y [mm]");
-
-        hPolyTime_Y = new TH2D("PolyTime_y", "", 12, -6.1, 139.1, 70, 0., 512);
-        hPolyTime_Y -> SetTitle("Pad Time (Noise Subtraction); y [mm]; TB");
 
         hTB_subt = new TH2D("TB_subt","", 512, 0, 512, 3600, -100, 3500);
         hTB_subt -> SetTitle("Timebucket summary; TB ; ADC");
-
-        cRawPad = new TCanvas("rawPad", "", 1400., 1200.);
-        cRawPad -> Divide(2,2);
 
         cTestCanvas = new TCanvas("cTestCanvas","",600., 600.);
         hTestTB = new TH1D("hTestTB", "", 512, 0., 512.);
@@ -71,29 +57,21 @@ bool STDNoiseSubtractor::Init()
 
 void STDNoiseSubtractor::Exec(Option_t *option)
 {
-    const int asadNum = 4;
-
     // test !! Todo fixed a tmpADC and noise template method 25/02/28
-    if(fOnDrawRawADC){
-        hPolyADC_subt -> ClearBinContents();
-        hPolyTime_subt -> ClearBinContents();
-        hPolyTime_Y -> Reset("ICESM");
-        hTB_subt -> Reset("ICESM");
-    }
 
     double tmpADC[ASADNUM][AGETNUM][CHANNUM][TIMEBUCKET];
     memset(tmpADC, 0, sizeof(tmpADC));
 
-    double tmpPadNum[asadNum]; // [asad][padNum]
-    memset(tmpPadNum, 0., sizeof(tmpPadNum));
+    double tmpChanNum[ASADNUM];
+    memset(tmpChanNum, 0., sizeof(tmpChanNum));
 
     const int tbIdxNum = fTBIdxNum;
-    double tmpTempADC[asadNum][tbIdxNum][2]; // [asad][tbIdx][mean, StdDev]
+    double tmpTempADC[ASADNUM][tbIdxNum][2]; // [asad][tbIdx][mean, StdDev]
     memset(tmpTempADC, 0., sizeof(tmpTempADC));
 
-    const int padNum = fChannelArray -> GetEntries();
-    for(int pad=0; pad<padNum; pad++){
-        fChannel = (GETChannel*)fChannelArray -> At(pad);
+    const int channelNum = fChannelArray -> GetEntries();
+    for(int chan=0; chan<channelNum; chan++){
+        fChannel = (GETChannel*)fChannelArray -> At(chan);
         auto rawADCArr = fChannel -> GetWaveformY();
 
         int asadID = fChannel -> GetAsad();
@@ -119,11 +97,11 @@ void STDNoiseSubtractor::Exec(Option_t *option)
             int tb = (tbIdx+1)*fTBInterval;
             tmpTempADC[asadID][tbIdx][0] += tmpADC[asadID][agetID][chanID][tb];
         }
-        tmpPadNum[asadID] += 1.;
+        tmpChanNum[asadID] += 1.;
     }
 
-    for(int pad=0; pad<padNum; pad++){
-        fChannel = (GETChannel*)fChannelArray -> At(pad);
+    for(int chan=0; chan<channelNum; chan++){
+        fChannel = (GETChannel*)fChannelArray -> At(chan);
         int asadID = fChannel -> GetAsad();
         int agetID = fChannel -> GetAget();
         int chanID = fChannel -> GetChan();
@@ -131,19 +109,19 @@ void STDNoiseSubtractor::Exec(Option_t *option)
 
         for(int tbIdx=0; tbIdx<fTBIdxNum; tbIdx++){
             int tb = (tbIdx+1)*fTBInterval;
-            double mean = tmpTempADC[asadID][tbIdx][0]/tmpPadNum[asadID];
+            double mean = tmpTempADC[asadID][tbIdx][0]/tmpChanNum[asadID];
             double adc = tmpADC[asadID][agetID][chanID][tb];
 
             tmpTempADC[asadID][tbIdx][1] += (adc - mean)*(adc - mean);
         }
     }
 
-    for(int asad=0; asad<asadNum; asad++){
+    for(int asad=0; asad<ASADNUM; asad++){
         fADCTemplate[asad] -> Reset("ICESM");
     }
 
-    for(int pad=0; pad<padNum; pad++){
-        fChannel = (GETChannel*)fChannelArray -> At(pad);
+    for(int chan=0; chan<channelNum; chan++){
+        fChannel = (GETChannel*)fChannelArray -> At(chan);
         int asadID = fChannel -> GetAsad();
         int agetID = fChannel -> GetAget();
         int chanID = fChannel -> GetChan();
@@ -152,8 +130,8 @@ void STDNoiseSubtractor::Exec(Option_t *option)
         int rejectIdx = 0;
         for(int tbIdx=0; tbIdx<fTBIdxNum; tbIdx++){
             int tb = (tbIdx+1)*fTBInterval;
-            double mean = tmpTempADC[asadID][tbIdx][0]/tmpPadNum[asadID];
-            double stdDev = sqrt(tmpTempADC[asadID][tbIdx][1]/(tmpPadNum[asadID]-1.));
+            double mean = tmpTempADC[asadID][tbIdx][0]/tmpChanNum[asadID];
+            double stdDev = sqrt(tmpTempADC[asadID][tbIdx][1]/(tmpChanNum[asadID]-1.));
             if(fabs(tmpADC[asadID][agetID][chanID][tb] > mean + 1.5*stdDev)){rejectIdx++;}
         }
 
@@ -164,12 +142,12 @@ void STDNoiseSubtractor::Exec(Option_t *option)
         }
     }
 
-    for(int asad=0; asad<asadNum; asad++){
+    for(int asad=0; asad<ASADNUM; asad++){
         fNoiseTemplate[asad] = (TProfile*)fADCTemplate[asad] -> ProfileX();
     }
 
-    for(int pad=0; pad<padNum; pad++){
-        fChannel = (GETChannel*)fChannelArray -> At(pad);
+    for(int chan=0; chan<channelNum; chan++){
+        fChannel = (GETChannel*)fChannelArray -> At(chan);
         int asadID = fChannel -> GetAsad();
         int agetID = fChannel -> GetAget();
         int chanID = fChannel -> GetChan();
@@ -189,12 +167,17 @@ void STDNoiseSubtractor::Exec(Option_t *option)
         double adcIntegral = fADCTmp->Integral(fTBStartIdx, 40) + fADCTmp->Integral(470, fTBEndIdx);
         fNoiseTemplate[asadID] -> Scale(adcIntegral);
 
+        // bool isSiArray = (fSiArrayAsAdID == asadID)? true : false;
+        bool isSiJunction = fSiArray -> IsJunction(agetID, chanID);
+
         int tmpADC2[512];
         memset(tmpADC2, 0, sizeof(tmpADC2));
         for(int tb=fTBStartIdx; tb<fTBEndIdx; tb++){
             double adc = fADCTmp -> GetBinContent(tb+1) - fTmpADCOffset;
             double noise =  fNoiseTemplate[asadID] -> GetBinContent(tb+1) - fTmpADCOffset - NoiseOffset;
             tmpADC2[tb] = int(adc - noise);
+
+            if(isSiJunction){tmpADC2[tb] = -tmpADC2[tb];}
         }
 
         if(fOnDrawRawADC){
@@ -213,23 +196,16 @@ void STDNoiseSubtractor::Exec(Option_t *option)
                 }
             }
 
-            if(maxADC < 40){continue;}
-            if(maxTime < 10 || maxTime > 500){continue;}
-            int layer = fDetectorPlane -> GetLayerID(asadID, agetID, chanID);
-            int row = fDetectorPlane -> GetRowID(asadID, agetID, chanID);
-            double x = fDetectorPlane -> GetX(layer, row);
-            double y = fDetectorPlane -> GetY(layer, row);
-
-            hPolyADC_subt -> Fill(x, y, maxADC);
-            hPolyTime_subt -> Fill(x, y, maxTime);
-            hPolyTime_Y -> Fill(y, maxTime);
-
-            cTestCanvas -> cd();
-            hTestTB -> GetYaxis()->SetRangeUser(-200, 500.);
-            hTestTB -> Draw("hist");
-            hTestRawTB -> Draw("same, hist");
-            cTestCanvas -> Update();
-            // cTestCanvas -> SaveAs(Form("event%i_pad%i.png", fRun->GetCurrentEventID(), pad));
+            if(maxADC > 10){
+                cTestCanvas -> cd();
+                hTestTB -> GetYaxis()->SetRangeUser(-200, 4000.);
+                hTestTB -> Draw("hist");
+                hTestRawTB -> Draw("same, hist");
+                fNoiseTemplate[0] -> SetLineColor(kBlack);
+                fNoiseTemplate[0] -> Draw("same, hist");
+                cTestCanvas -> Update();
+                cTestCanvas -> SaveAs(Form("_ttevent%i_aget%i_chan%i.png", fRun->GetCurrentEventID(), agetID, chanID));
+            }
         }
         fChannel -> SetWaveformY(tmpADC2);
     }
@@ -240,18 +216,8 @@ void STDNoiseSubtractor::Exec(Option_t *option)
 
     // Drawing 
     if(fOnDrawRawADC){
-        cRawPad -> cd(1);
-        hBoundary -> Draw();
-        hPolyADC_subt -> Draw("same, colz");
-        cRawPad -> cd(2);
-        hPolyTime_Y -> Draw("colz");
-        cRawPad -> cd(3);
-        hPolyTime_subt -> Draw("colz");
-        cRawPad -> cd(4);
-        hTB_subt -> Draw("colz, hist");
-
-        cRawPad -> Update();
-        cRawPad -> SaveAs(Form("./figure/rawPad_evt%i.png", fRun->GetCurrentEventID()));
+        // hTB_subt -> GetYaxis()->SetRangeUser(-500, 1000.);
+        // hTB_subt -> Draw("colz, hist");
     }
 }
 
