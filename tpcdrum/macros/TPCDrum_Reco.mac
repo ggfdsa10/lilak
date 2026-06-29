@@ -1,0 +1,13 @@
+TPCDrum/
+    ##### Data path #####
+    SimDataPath      /home/shlee/workspace/lilak/tpcdrum/common  # simulation correction data file path
+    STDGarfieldData  STDGarfield_He4_90_CO2_10_650Torr.root      # STDGarfield format root file with specific gas system 
+    FieldData        STDGarfield_FieldMap_3000V.root             # STDGarfield format field map root file
+    PulseShapeData   Pulse_template_502PT_20ns.root              # Pulse template root file from STDPulseAnalyser
+    NoiseShapeData   Noise_template.root                         # Noise template root file from STDNoiseSubtractor
+
+STDPulseAnalyzer/
+    Method 0               # Method 0 (Default) = Full pulse fitting, Method 1 = pulse maximum value
+    ADCThreshold 80        # Default 40 ADC
+    PeakingTime 502        # 502, 1024, etc.. regarding pulse width (see the GET user guide)
+    OnMakePulseShape false # On-off for pulse shape making using the real data
