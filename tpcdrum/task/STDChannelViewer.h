@@ -17,6 +17,7 @@
 #include "TH1I.h"
 #include "TH2Poly.h"
 #include "TGraph.h"
+#include "TLatex.h"
 
 class STDChannelViewer : public LKTask
 { 
@@ -28,7 +29,7 @@ class STDChannelViewer : public LKTask
         void Exec(Option_t*);
         bool EndOfRun();
 
-        bool OnEventFigure(){fIsOnEventFigure = true;}
+        void OnEventFigure(){fIsOnEventFigure = true;}
 
         void SetRunNumber(TString run){fRunNum = run;}
 
@@ -42,7 +43,9 @@ class STDChannelViewer : public LKTask
         // test
         bool fIsOnEventFigure;
         TCanvas* cEvent = nullptr;
+        TLatex* cTatex;
         TH2Poly* hPoly = nullptr;
+        TH2Poly* hPolyTotal = nullptr;
         TH2Poly* hBoundary = nullptr;
 
         TH1D* hHitNum = nullptr;
