@@ -31,6 +31,12 @@ RunList SejongDAQFlow::GetRunList(TString input, TString rejectRun, bool isDAQSt
         runList.push_back(make_pair(0, tmp));
         return runList;
     }
+    else if(input.Index("/") != -1){
+        TString path = input;
+        vector<TString> tmp = GetDAQFiles(path);
+        runList.push_back(make_pair(0, tmp));
+        return runList;
+    }
     else{
         vector<Int_t> excuteRuns = GetRunsFromString(input);
         vector<Int_t> rejectRuns = GetRunsFromString(rejectRun);
@@ -47,7 +53,6 @@ RunList SejongDAQFlow::GetRunList(TString input, TString rejectRun, bool isDAQSt
 
             vector<TString> fileList = GetDataBaseFile(run, isDAQStage);
             runList.push_back(make_pair(run, fileList));
-
         }
         return runList;
     }
@@ -117,7 +122,7 @@ vector<TString> SejongDAQFlow::GetDAQFiles(TString path)
         TString fileName = runFile->GetName();
         if(!runFile){continue;}
 
-        TString filePath = path+"/"+fileName;
+        TString filePath = path+fileName;
         if(fileName.Index(".graw") != -1){
             filePathList.push_back(filePath);
         }

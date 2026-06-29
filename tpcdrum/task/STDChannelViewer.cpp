@@ -3,7 +3,7 @@
 ClassImp(STDChannelViewer);
 
 STDChannelViewer::STDChannelViewer()
-: fIsOnEventFigure(false)
+: fIsOnEventFigure(false), fRunNum("non")
 {
     fName = "STDChannelViewer";
 }
@@ -44,6 +44,8 @@ bool STDChannelViewer::Init()
     hSumADC = new TH1D("hHitNum","", 100, 0, 60000);
     hSumADC -> SetTitle("Sum of ADC distribution; Sum ADC; Counts");
     hSumADC -> SetStats(0);
+
+    if(fRunNum == "non"){fRunNum = "Temporary";}
 
     return true;
 }

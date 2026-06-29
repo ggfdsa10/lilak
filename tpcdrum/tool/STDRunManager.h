@@ -26,6 +26,8 @@ class STDRunManager : public LKRun
 
         void Print();
 
+        void SetSiArrayAsAdID(int asad=3){fSiArrayAsAdID = asad;} // temporary function!!! it will be changed to run data (26/June/10)
+
         // Avaliable input run list format: 
         // 1. Text files ex) runlist.list .lis. .text .txt
         // 2. Single run number ex) 240101001
@@ -48,6 +50,7 @@ class STDRunManager : public LKRun
         TString fRejectRun;
         RunList fRunList;
 
+        Int_t fSiArrayAsAdID;
         int fTotalEventNum;
         int fEventNumByRun;
         int fCurrentEventIdx;

@@ -3,7 +3,7 @@
 ClassImp(STDRunManager);
 
 STDRunManager::STDRunManager()
-: fIsDAQStage(false), fInputRun(""), fRejectRun(""), fTotalEventNum(-1), fEventNumByRun(-1), fCurrentEventIdx(0)
+: fIsDAQStage(false), fInputRun(""), fRejectRun(""), fTotalEventNum(-1), fEventNumByRun(-1), fCurrentEventIdx(0), fSiArrayAsAdID(3)
 {
 }
 
@@ -18,8 +18,20 @@ bool STDRunManager::Init()
             LKRun::SetEventTrigger(fDecoder);
         }
     }
+    else{
+        if(fDataPath != ""){
+            fRunList = SejongDAQFlow::GetRunList(fDataPath, "", true);
+            if(fIsDAQStage){
+                fDecoder = new STDDecoder();
+                LKRun::SetEventTrigger(fDecoder);
+            }
+        }
+    }
+
     // else{lk_error << "STDRunManager::Init() There is no set the Input Run List!!!" << endl;}
     LKRun::SetAutoTermination(false);
+
+    fPar -> AddPar("TPCDrum/SiArrayAsAdID", fSiArrayAsAdID);
 
     return true;
 }
@@ -36,7 +48,7 @@ bool STDRunManager::Run()
             if(fTotalEventNum != -1){fDecoder -> SetEventNumber(fTotalEventNum-fCurrentEventIdx-1);}
             if(fEventNumByRun != -1){fDecoder -> SetEventNumber(fEventNumByRun-1);}
             fDecoder -> SetRunFile(fRunList[run].second);
-        
+ 
             // Main Run process
             LKRun::Run();
 
