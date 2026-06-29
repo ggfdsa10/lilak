@@ -167,7 +167,7 @@ void STDNoiseSubtractor::Exec(Option_t *option)
         double adcIntegral = fADCTmp->Integral(fTBStartIdx, 40) + fADCTmp->Integral(470, fTBEndIdx);
         fNoiseTemplate[asadID] -> Scale(adcIntegral);
 
-        // bool isSiArray = (fSiArrayAsAdID == asadID)? true : false;
+        bool isSiArray = (fSiArrayAsAdID == asadID)? true : false;
         bool isSiJunction = fSiArray -> IsJunction(agetID, chanID);
 
         int tmpADC2[512];
@@ -177,7 +177,7 @@ void STDNoiseSubtractor::Exec(Option_t *option)
             double noise =  fNoiseTemplate[asadID] -> GetBinContent(tb+1) - fTmpADCOffset - NoiseOffset;
             tmpADC2[tb] = int(adc - noise);
 
-            if(isSiJunction){tmpADC2[tb] = -tmpADC2[tb];}
+            if(isSiArray && isSiJunction){tmpADC2[tb] = -tmpADC2[tb];}
         }
 
         if(fOnDrawRawADC){
