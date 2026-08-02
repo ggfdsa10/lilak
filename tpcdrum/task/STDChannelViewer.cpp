@@ -26,17 +26,18 @@ bool STDChannelViewer::Init()
     hBoundary -> SetTitle("TPC-Drum pad plane ; x [mm]; y [mm]");
     hBoundary -> AddBin(4, x, y);
 
-    cEvent = new TCanvas("cEvent", "", 1200, 600.);
-    cEvent -> Divide(2,1);
+    cEvent = new TCanvas("cEvent", "", 600, 600.);
+    cEvent -> Divide(3,2);
     
 
     cTatex = new TLatex();
     cTatex ->SetTextSize(0.04);
 
-    hChannel = new TH2D("hChannel","",512, 0, 512, 3800, -200., 3600.);
-    hChannel -> SetTitle("All channel pulse; TB;ADC");
-    hChannel -> SetStats(0);
-
+    for(int i=0; i<4; i++){
+        hChannel[i] = new TH2D(Form("hChannel_AGET%i", i),"",512, 0, 512, 3800, -200., 3600.);
+        hChannel[i] -> SetTitle(Form("All channel pulse at AGET %i;TB;ADC", i));
+        hChannel[i] -> SetStats(0);
+    }
     hHitNum = new TH1D("hHitNum","", 100, 0, 100);
     hHitNum -> SetTitle("Hit (ADC>250) distribution; Hit; Counts");
     hHitNum -> SetStats(0);
@@ -47,12 +48,22 @@ bool STDChannelViewer::Init()
 
     if(fRunNum == "non"){fRunNum = "Temporary";}
 
+    for(int i=0; i<4; i++){
+        for(int j=0; j<68; j++){
+            hChanTest[i][j] = new TH1D(Form("hChanTest_AGET%i_CHAN%i", i, j), "", 512, 0, 512);
+            hChanTest[i][j] -> SetTitle(Form("All channel pulse at AGET %i CHAN %i;TB;ADC", i, j));
+            hChanTest[i][j] -> SetStats(0);
+        }
+    }
+
     return true;
 }
 
 void STDChannelViewer::Exec(Option_t *option)
 {
-    hChannel -> Reset("ICESM");
+    for(int i=0; i<4; i++){
+        hChannel[i] -> Reset("ICESM");
+    }
     hPoly -> ClearBinContents();
 
     int hitNum = 0;
@@ -77,7 +88,7 @@ void STDChannelViewer::Exec(Option_t *option)
                 maxADC = adc;
                 maxTBIdx = tb;
             }
-            hChannel -> Fill(tb+1, adc);
+            hChannel[agetID] -> Fill(tb+1, adc);
         }
         if(maxADC <= 50.){continue;}
 
@@ -88,6 +99,18 @@ void STDChannelViewer::Exec(Option_t *option)
         hPolyTotal -> Fill(x, y, 1.);
         hitNum++;
         sumADC += maxADC;
+
+        // if(fIsOnEventFigure){
+        //     hChanTest[agetID][chanID] -> Reset("ICESM");
+        //     for(int tb=10; tb<500; tb++){
+        //         double adc = rawADCArr[tb];
+        //         hChanTest[agetID][chanID] -> SetBinContent(tb+1, adc);
+        //     }
+        //     cEvent -> cd();
+        //     hChanTest[agetID][chanID] -> Draw();
+        //     cEvent -> Update();
+        //     cEvent -> SaveAs(Form("./figure/Run%s_Event%i_aget%i_chan%i.png", fRunNum.Data(), int(fRun -> GetCurrentEventID()), agetID, chanID));
+        // }
     }
 
     hHitNum -> Fill(hitNum);
@@ -100,10 +123,14 @@ void STDChannelViewer::Exec(Option_t *option)
         cTatex -> DrawLatexNDC(0.13, 0.855, Form("Run %s", fRunNum.Data()));
         cTatex -> DrawLatexNDC(0.13, 0.805, Form("Event %i", int(fRun -> GetCurrentEventID())));
 
-        cEvent -> cd(2);
-        hChannel -> Draw("colz");
-        cTatex -> DrawLatexNDC(0.13, 0.855, Form("Run %s", fRunNum.Data()));
-        cTatex -> DrawLatexNDC(0.13, 0.805, Form("Event %i", int(fRun -> GetCurrentEventID())));
+        for(int i=0; i<4; i++){
+            int cIdx = i+2;
+            if(cIdx>=3){cIdx++;}
+            cEvent -> cd(cIdx);
+            hChannel[i] -> Draw("colz");
+            cTatex -> DrawLatexNDC(0.13, 0.855, Form("Run %s", fRunNum.Data()));
+            cTatex -> DrawLatexNDC(0.13, 0.805, Form("Event %i", int(fRun -> GetCurrentEventID())));
+        }
 
         cEvent -> Update();
         cEvent -> SaveAs(Form("./Run%s_Event%i.pdf", fRunNum.Data(), int(fRun -> GetCurrentEventID()) ));
@@ -134,7 +161,7 @@ bool STDChannelViewer::EndOfRun()
     latex -> DrawLatexNDC(0.13, 0.855, Form("Run %s", fRunNum.Data()));
 
     c1 -> Draw();
-    c1 -> SaveAs(Form("./RunSummary_run%s.pdf", fRunNum.Data()));
+    c1 -> SaveAs(Form("./figure/RunSummary_run%s.pdf", fRunNum.Data()));
 
     return true;
 }

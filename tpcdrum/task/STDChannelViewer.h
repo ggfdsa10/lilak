@@ -50,7 +50,8 @@ class STDChannelViewer : public LKTask
 
         TH1D* hHitNum = nullptr;
         TH1D* hSumADC = nullptr;
-        TH2D* hChannel = nullptr;
+        TH2D* hChannel[4];
+        TH1D* hChanTest[4][68];
 
         TString fRunNum;
 
