@@ -45,9 +45,8 @@ class STDDecoder : public LKTask
 
         int fEventIdx = 0;
         int fEventNum = -1;
-
-        int fAsAdNum = 0;
-
+        bool fAsAdOn[ASADNUM];
+        
         TClonesArray* fEventHeaderArray = nullptr;
         TClonesArray* fChannelArray = nullptr;
 

@@ -16,10 +16,7 @@ bool STDDecoder::Init()
     fDetectorPlane = (STDPadPlane*) fDetector -> GetDetectorPlane();
 
     fEventHeaderArray = fRun -> RegisterBranchA("FrameHeader", "LKEventHeader", 1);
-
-    int agetNum = fDetectorPlane -> GetAGETNum();
-    int chanNum = fDetectorPlane -> GetChanNum();
-    fChannelArray = fRun -> RegisterBranchA("RawPad", "GETChannel", 3*agetNum*chanNum);
+    fChannelArray = fRun -> RegisterBranchA("RawPad", "GETChannel", ASADNUM*AGETNUM*CHANNUM);
 
     if(!fDecoder){fDecoder = new GETDecoder[ASADNUM];}
 
@@ -31,6 +28,7 @@ bool STDDecoder::Init()
 bool STDDecoder::Clear()
 {
     fDAQList.clear();
+    memset(fAsAdOn, false, sizeof(fAsAdOn));
 
     return true;
 }
@@ -40,14 +38,14 @@ void STDDecoder::Run(Long64_t numEvents)
     AddFiles();
 
     if(fEventNum != -1){fEventIdx = fEventNum;}
-
     for(int event=0; event<fEventIdx; event++){
-        for(int asad=0; asad<fAsAdNum; asad++){
+        for(int asad=0; asad<ASADNUM; asad++){
+            if(!fAsAdOn[asad]){continue;}
             fFrame[asad] = fDecoder[asad].GetBasicFrame(event);
+            fFrame[asad] -> Print(); // test
         }
 
         FillData();
-
         fRun -> ExecuteNextEvent();
     }
     fRun -> EndOfRun();
@@ -66,10 +64,8 @@ void STDDecoder::SetRunFile(vector<TString> fileList)
 void STDDecoder::SetEventNumber(int event){fEventNum = event;}
 Int_t STDDecoder::GetTotalEventNumber(){return fEventIdx;}
 
-
 Int_t STDDecoder::AddFiles()
 {
-    fAsAdNum = 0;
     for(int i=0; i<ASADNUM; i++){
         bool isEmpty = fDAQList[i].empty();
         if(!isEmpty){
@@ -77,7 +73,6 @@ Int_t STDDecoder::AddFiles()
                 fDecoder[i].AddData(fDAQList[i].front());
                 fDAQList[i].pop();
             }
-            fAsAdNum++;
         }
     }
 
@@ -86,6 +81,7 @@ Int_t STDDecoder::AddFiles()
         fDecoder[asad].SetData(0);
         fDecoder[asad].GoToEnd();
         fEventIdx = fDecoder[asad].GetNumFrames();
+        fAsAdOn[asad] = true;
     }
 
     return 1;
@@ -95,7 +91,9 @@ Int_t STDDecoder::FillData()
 {
     fChannelArray -> Clear("C");
     int channelIdx = 0;
-    for(int asad=0; asad<fAsAdNum; asad++){
+    for(int asad=0; asad<ASADNUM; asad++){
+        if(!fAsAdOn[asad]){continue;}
+
         for(int aget=0; aget<AGETNUM; aget++){
             for(int chan=0; chan<CHANNUM; chan++){
                 Int_t *sample = fFrame[asad] -> GetSample(aget, chan);
@@ -110,7 +108,8 @@ Int_t STDDecoder::FillData()
                 for(int tb=0; tb<TIMEBUCKET; tb++){ 
                     int adc = sample[tb];
                     int fpn = fpnSample[tb];
-                    ADC[tb] = adc - fpn;
+                    // ADC[tb] = adc - fpn;
+                    ADC[tb] = adc;
                     meanFPN += double(fpn);
                 }
                 meanFPN /= double(TIMEBUCKET);
