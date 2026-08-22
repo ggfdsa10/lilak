@@ -1,7 +1,7 @@
 Beam
  Particle = 20Ne
  ExcitationEnergy = 0 MeV
- Energy = 200 MeV
+ Energy = 140 MeV
  SigmaEnergy = 1.0 MeV
  SigmaThetaX = 0.000 rad
  SigmaPhiY = 0.000 rad
