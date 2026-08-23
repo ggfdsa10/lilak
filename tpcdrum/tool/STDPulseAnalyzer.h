@@ -1,6 +1,6 @@
 #ifndef STDPulseAnalyzer_HH
 #define STDPulseAnalyzer_HH
-
+#include "LKTask.h"
 #include "LKRun.h"
 #include "LKParameterContainer.h"
 #include "GETChannel.h"
@@ -9,7 +9,7 @@
 #include "TSystem.h"
 #include "TSpectrum.h"
 
-class STDPulseAnalyzer
+class STDPulseAnalyzer : public LKTask
 { 
     public:
         enum PulseMethod
