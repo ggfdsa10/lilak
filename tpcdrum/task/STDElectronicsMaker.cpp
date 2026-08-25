@@ -24,7 +24,7 @@ bool STDElectronicsMaker::Init()
     }
     fEChargeToADC = fElectronCharge/(fDynamicRange *1.0e-15)*fADCMaxAmp;
 
-    fTuneManager = STDSimTuningManager::GetSimTuningManager();
+    // fTuneManager = STDSimTuningManager::GetSimTuningManager();
     fPulseAnalyzer = new STDPulseAnalyzer();
     fPulseAnalyzer -> Init();
 
@@ -33,7 +33,7 @@ bool STDElectronicsMaker::Init()
 
 void STDElectronicsMaker::Exec(Option_t *option)
 {
-    fTuneManager -> InitNoise(); // Initialize the event noise
+    // fTuneManager -> InitNoise(); // Initialize the event noise
 
     const int trackNum = fTrackArray -> GetEntries();
     const int chanNum = fChannelArray -> GetEntries();
@@ -42,7 +42,8 @@ void STDElectronicsMaker::Exec(Option_t *option)
 
     for(int chan=0; chan<chanNum; chan++){
         fChannel = (GETChannel*)fChannelArray -> At(chan);
-
+        
+        fMCTag = nullptr;
         bool isTPC = (chan <= tpcPadNum) ? true : false;
         if(isTPC){
             if(fMCTagTPCArray == nullptr){continue;}
@@ -52,6 +53,7 @@ void STDElectronicsMaker::Exec(Option_t *option)
             if(fMCTagSiArray == nullptr){continue;}
             fMCTag = (LKMCTag*)fMCTagSiArray -> At(chan-tpcPadNum);
         }
+        if(fMCTag == nullptr){continue;}
 
         memset(trackWeights, 0., sizeof(trackWeights));
 
@@ -114,8 +116,8 @@ void STDElectronicsMaker::Exec(Option_t *option)
         }
 
         // Step5: Make the Noise
-        int asadID = fChannel -> GetAsad();
-        fTuneManager -> AddChannelNoise(asadID, ADC);
+        // int asadID = fChannel -> GetAsad();
+        // fTuneManager -> AddChannelNoise(asadID, ADC);
     }
 }
 
