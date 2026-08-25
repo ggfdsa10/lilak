@@ -38,11 +38,11 @@ void STDDecoder::Run(Long64_t numEvents)
     AddFiles();
 
     if(fEventNum != -1){fEventIdx = fEventNum;}
+    lk_info << "Estimated nubmer of events: " << fEventIdx << std::endl;
     for(int event=0; event<fEventIdx; event++){
         for(int asad=0; asad<ASADNUM; asad++){
             if(!fAsAdOn[asad]){continue;}
             fFrame[asad] = fDecoder[asad].GetBasicFrame(event);
-            fFrame[asad] -> Print(); // test
         }
 
         FillData();
@@ -108,8 +108,7 @@ Int_t STDDecoder::FillData()
                 for(int tb=0; tb<TIMEBUCKET; tb++){ 
                     int adc = sample[tb];
                     int fpn = fpnSample[tb];
-                    // ADC[tb] = adc - fpn;
-                    ADC[tb] = adc;
+                    ADC[tb] = adc - fpn;
                     meanFPN += double(fpn);
                 }
                 meanFPN /= double(TIMEBUCKET);
