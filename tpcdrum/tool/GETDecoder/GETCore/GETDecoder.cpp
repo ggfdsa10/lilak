@@ -31,7 +31,7 @@
 
 #include "GETFileChecker.h"
 
-//#define DEBUG
+// #define DEBUG
 
 ClassImp(GETDecoder);
 
