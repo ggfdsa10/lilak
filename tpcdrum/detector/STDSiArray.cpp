@@ -96,7 +96,6 @@ Int_t STDSiArray::GetSiDetID(int aget, int chan)
 Int_t STDSiArray::GetOhmicID(int aget, int chan)
 {
     if(aget != 0){return -1;} // exclude junction channel aget
-    if(chan > 33){return -1;} // end of 8th si detector
     if(fChannelMap.find(make_pair(0, chan)) != fChannelMap.end()){
         return fChannelMap.find(make_pair(0, chan))->second.second;
     }
@@ -125,8 +124,15 @@ Int_t STDSiArray::GetAgetID(int siDetID, bool isOhmic)
 {
     if(isOhmic){return 0;}
     if(siDetID<0 || siDetID>=fSiDetNum){return -1;}
-    if(siDetID < 4){return 1;}
-    return 2;
+
+    // Follow the actual channel map instead of assuming that detector IDs
+    // 0--3 and 4--7 always belong to fixed AGETs.
+    for(auto it = fChannelMap.begin(); it != fChannelMap.end(); ++it){
+        int aget = it->first.first;
+        int mappedSiDetID = it->second.first;
+        if(aget != 0 && mappedSiDetID == siDetID){return aget;}
+    }
+    return -1;
 }
 
 Int_t STDSiArray::GetChanID4Ohmic(int siDetID, int ohmicID)
@@ -378,31 +384,74 @@ void STDSiArray::InitSiArrayGeometry()
 
 void STDSiArray::InitChannelMapping()
 {
-    for(int aget=0; aget<fAGETNum-1; aget++){
-        if(aget >= 3){continue;}
-        bool isOhmic = (aget==0)? true : false;
+    fChannelMap.clear();
 
-        int tmpChanIdx = 0;
-        for(int chan=0; chan<fChanNum; chan++){
-            if(IsFPNChannel(chan)){continue;}
+    // Physical AGET channels with the four FPN channels removed.
+    vector<int> signalChannels;
+    for(int chan=0; chan<fChanNum; chan++){
+        if(IsFPNChannel(chan)){continue;}
+        signalChannels.push_back(chan);
+    }
 
-            int siDetIdx = -1;
-            int chanIdx = -1;
-            if(isOhmic){
-                if(chan > 33){break;}
-                siDetIdx = int(tmpChanIdx/fOhmicNum);
-                chanIdx = fOhmicNum - int(tmpChanIdx%4) -1;
+    // ------------------------------------------------------------------
+    // AGET 0: Ohmic mapping
+    // ------------------------------------------------------------------
+    // Only physical channels 17--50 (excluding FPN 22 and 45) are used.
+    // The detector blocks progress upward in channel number as
+    //   D, RD, RM, RU, U, LD, LM, LU,
+    // while O0 is the largest physical channel inside each four-channel
+    // detector block.
+    const int ohmicDetectorOrder[fSiDetNum] = {
+        7, // SiDet_D  : O0..O3 = 20,19,18,17
+        2, // SiDet_RD : O0..O3 = 25,24,23,21
+        1, // SiDet_RM : O0..O3 = 29,28,27,26
+        0, // SiDet_RU : O0..O3 = 33,32,31,30
+        6, // SiDet_U  : O0..O3 = 37,36,35,34
+        5, // SiDet_LD : O0..O3 = 41,40,39,38
+        4, // SiDet_LM : O0..O3 = 46,44,43,42
+        3  // SiDet_LU : O0..O3 = 50,49,48,47
+    };
 
-            }
-            else{
-                siDetIdx = tmpChanIdx/fJuncNum + (aget-1)*4;
-                chanIdx = fJuncNum - int(tmpChanIdx%16) - 1;
-            }
-
-            fChannelMap.insert({make_pair(aget, chan), make_pair(siDetIdx, chanIdx)});
-            tmpChanIdx++;
+    const int firstUsedOhmicSignalIndex = 16; // physical channel 17
+    for(int block=0; block<fSiDetNum; block++){
+        int siDetID = ohmicDetectorOrder[block];
+        for(int ohmicID=0; ohmicID<fOhmicNum; ohmicID++){
+            int signalIndex = firstUsedOhmicSignalIndex
+                            + block*fOhmicNum
+                            + (fOhmicNum-1-ohmicID);
+            int chan = signalChannels[signalIndex];
+            fChannelMap.insert({make_pair(0, chan),
+                                make_pair(siDetID, ohmicID)});
         }
     }
+
+    // ------------------------------------------------------------------
+    // AGET 1 and 2: Junction mapping
+    // ------------------------------------------------------------------
+    // Each detector occupies one block of 16 non-FPN channels. J0 is the
+    // largest physical channel in its block.
+    //
+    // AGET 1, low -> high channel blocks: U, LD, LM, LU
+    // AGET 2, low -> high channel blocks: D, RD, RM, RU
+    const int junctionDetectorOrder[2][4] = {
+        {6, 5, 4, 3}, // AGET 1: U, LD, LM, LU
+        {7, 2, 1, 0}  // AGET 2: D, RD, RM, RU
+    };
+
+    for(int aget=1; aget<=2; aget++){
+        for(int block=0; block<4; block++){
+            int siDetID = junctionDetectorOrder[aget-1][block];
+            for(int junctionID=0; junctionID<fJuncNum; junctionID++){
+                int signalIndex = block*fJuncNum
+                                + (fJuncNum-1-junctionID);
+                int chan = signalChannels[signalIndex];
+                fChannelMap.insert({make_pair(aget, chan),
+                                    make_pair(siDetID, junctionID)});
+            }
+        }
+    }
+
+    // AGET 3 intentionally has no Si junction mapping.
 }
 
 void STDSiArray::InitChannelArray()
@@ -429,3 +478,4 @@ void STDSiArray::InitChannelArray()
         }
     }
 }
+
