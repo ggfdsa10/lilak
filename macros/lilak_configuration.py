@@ -1116,7 +1116,7 @@ update_git_repos() {{
 
 lilak_write_current_tag_list() {{
     local output_file="$1"
-    local version_line=""
+    local main_version=""
     local branch=""
     local count=""
     local hash=""
@@ -1126,7 +1126,8 @@ lilak_write_current_tag_list() {{
             count=$(git -C "$LILAK_PATH" rev-list --count "$branch" 2>/dev/null)
             hash=$(git -C "$LILAK_PATH" rev-parse --short "$branch" 2>/dev/null)
             if [ -n "$branch" ] && [ -n "$count" ] && [ -n "$hash" ]; then
-                echo "lilak ${{branch}}.${{count}}.${{hash}}"
+                main_version="${{branch}}.${{count}}.${{hash}}"
+                echo "lilak ${{main_version}}"
             fi
         fi
         for project_dir in {" ".join(self.lf_lilak_projects)}; do
@@ -1137,6 +1138,8 @@ lilak_write_current_tag_list() {{
                 if [ -n "$branch" ] && [ -n "$count" ] && [ -n "$hash" ]; then
                     echo "${{project_dir}} ${{branch}}.${{count}}.${{hash}}"
                 fi
+            elif [ -n "$main_version" ] && [ -d "$LILAK_PATH/$project_dir" ]; then
+                echo "${{project_dir}} ${{main_version}}"
             fi
         done
     }} > "$output_file"
@@ -1221,7 +1224,13 @@ lilak_warn_if_make_meta_is_stale() {{
         echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
         return
     fi
-    if ! cmp -s "$current_tags" "$last_meta_tags"; then
+    local current_norm=""
+    local last_norm=""
+    current_norm=$(mktemp)
+    last_norm=$(mktemp)
+    grep -v '^[[:space:]]*$' "$current_tags" > "$current_norm"
+    grep -v '^[[:space:]]*$' "$last_meta_tags" > "$last_norm"
+    if ! cmp -s "$current_norm" "$last_norm"; then
         echo
         echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
         echo "Current build git tags differ from the last make_meta snapshot."
@@ -1229,9 +1238,41 @@ lilak_warn_if_make_meta_is_stale() {{
         echo "Last make_meta snapshot: $last_meta_tags"
         echo "Current build tags      : $current_tags"
         echo "Diff:"
-        diff -u "$last_meta_tags" "$current_tags" || true
+        diff -u "$last_norm" "$current_norm" || true
         echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
     fi
+    rm -f "$current_norm" "$last_norm"
+}}
+
+lilak_make_meta_if_needed() {{
+    local current_tags="$LILAK_PATH/meta/LKCompiledTags.log"
+    local last_meta_tags="$LILAK_PATH/meta/LKLastMakeMetaTags.log"
+    if [ ! -f "$current_tags" ]; then
+        return
+    fi
+    if [ ! -f "$last_meta_tags" ]; then
+        echo
+        echo "Running make_meta because the tag snapshot is missing."
+        lilak make_meta
+        return
+    fi
+
+    local current_norm=""
+    local last_norm=""
+    current_norm=$(mktemp)
+    last_norm=$(mktemp)
+    grep -v '^[[:space:]]*$' "$current_tags" > "$current_norm"
+    grep -v '^[[:space:]]*$' "$last_meta_tags" > "$last_norm"
+    if ! cmp -s "$current_norm" "$last_norm"; then
+        rm -f "$current_norm" "$last_norm"
+        echo
+        echo "Running make_meta because build tags changed."
+        lilak make_meta
+        return
+    fi
+    rm -f "$current_norm" "$last_norm"
+
+    lilak_run_make_meta_for_stale_classes
 }}
 
 lilak_run_make_meta_for_stale_classes() {{
@@ -1324,7 +1365,7 @@ lilak() {{
         echo
         echo "LILAK (https://github.com/lilak-project)"
         echo
-        echo "Usage: lilak {{home|configure|build|build_new|new|update|example|doc|find|make_meta|make_run|par|si_mapping|g4sim|nptool|run|collect_par|read|draw}} [input]"
+        echo "Usage: lilak [command|macro] [input]"
         echo
         echo "Commands:"
         echo "  home               Navigate to the lilak home directory."
@@ -1338,11 +1379,13 @@ lilak() {{
         echo "  find [input]       Find and navigate to the directory containing [input]."
         echo "  make_meta [input]  Generate meta parameter files for all classes or one class."
         echo "  make_run [input]   Create a run parameter file from input ROOT file using configure_LKRun.mac."
+        echo "  log                Open the LKRun log viewer in a local web browser."
+        echo "  js [options]       Run JSROOT; use -K to stop, -I HOST:PORT, -S shell, -P python, -R ROOT, -D directory."
         echo "  par [input]        Open the parameter file editor in a local web browser."
         echo "  si_mapping [input] Open the silicon detector mapping editor in a local web browser."
+        echo "  get_viewer [options] [input...] Open and manage the network GET raw-frame viewer."
         echo "  g4sim [input]      Execute the default Geant4 simulatoin program with the provided [input]."
         echo "  nptool [input]     Execute the default nptool simulatoin program with the provided [input]."
-        echo "  run [input]        Execute the ROOT script with the provided [input]."
         echo "  collect_par [input] Execute parameter collection and rewrite the provided parameter file."
         echo "  read [input]       Create a ROOT macro that reads a LILAK output ROOT file."
         echo "  draw [input]       Draw using a parameter file, or generate draw examples from a ROOT file."
@@ -1507,16 +1550,23 @@ lilak() {{
                 found_target=1
                 par_file="$LILAK_PATH/meta/parameters/configure_LKRun.mac"
                 root_command="root -l -q -e 'auto run = new LKRun(); run -> SetCollectPar(\\"${{par_file}}\\"); run -> Init();'"
-                echo
-                echo "=============================="
                 echo "Class: LKRun"
-                echo "$root_command"
-                eval "$root_command"
+                make_meta_log="$LILAK_PATH/data/log/make_meta_LKRun.log"
+                mkdir -p "$(dirname "$make_meta_log")"
+                if [ "$LILAK_MAKE_META_VERBOSE" = "1" ]; then
+                    echo "$root_command"
+                    eval "$root_command"
+                else
+                    eval "$root_command" > "$make_meta_log" 2>&1
+                fi
                 run_status=$?
                 if [ -f "$par_file" ]; then
                     generated_files+=("$par_file")
                 fi
-                if [ "${{#generated_files[@]}}" -gt 0 ]; then
+                if [ "$run_status" -ne 0 ] && [ ! -f "$par_file" ]; then
+                    echo "  failed. Log: $make_meta_log"
+                fi
+                if [ "$LILAK_MAKE_META_VERBOSE" = "1" ] && [ "${{#generated_files[@]}}" -gt 0 ]; then
                     echo
                     echo "Generated files:"
                     printf '%s\\n' "${{generated_files[@]}}"
@@ -1540,11 +1590,15 @@ lilak() {{
                 else
                     root_command="root -l -q -e 'auto run = new LKRun(); run -> Add(new ${{class_name}}); run -> SetCollectSubPar(\\"${{par_file}}\\"); run -> SetCollectBranchPar(\\"${{branch_file}}\\"); run -> Init();'"
                 fi
-                echo
-                echo "=============================="
                 echo "Class: ${{class_name}}"
-                echo "$root_command"
-                eval "$root_command"
+                make_meta_log="$LILAK_PATH/data/log/make_meta_${{class_name}}.log"
+                mkdir -p "$(dirname "$make_meta_log")"
+                if [ "$LILAK_MAKE_META_VERBOSE" = "1" ]; then
+                    echo "$root_command"
+                    eval "$root_command"
+                else
+                    eval "$root_command" > "$make_meta_log" 2>&1
+                fi
                 run_status=$?
                 if [ -f "$par_file" ]; then
                     generated_files+=("$par_file")
@@ -1552,12 +1606,15 @@ lilak() {{
                 if [ "$class_name" != "LKRun" ] && [ -f "$branch_file" ]; then
                     generated_files+=("$branch_file")
                 fi
+                if [ "$run_status" -ne 0 ] && {{ [ ! -f "$par_file" ] || {{ [ "$class_name" != "LKRun" ] && [ ! -f "$branch_file" ]; }}; }}; then
+                    echo "  failed. Log: $make_meta_log"
+                fi
             done < "$par_list_file"
             if [ -n "$target_class" ] && [ "$found_target" -eq 0 ]; then
                 echo "Class not found in $par_list_file: $target_class"
                 return 1
             fi
-            if [ "${{#generated_files[@]}}" -gt 0 ]; then
+            if [ "$LILAK_MAKE_META_VERBOSE" = "1" ] && [ "${{#generated_files[@]}}" -gt 0 ]; then
                 echo
                 echo "Generated files:"
                 printf '%s\\n' "${{generated_files[@]}}"
@@ -1575,6 +1632,13 @@ lilak() {{
             fi
             python3 "$LILAK_PATH/macros/lilak_parameter_editor.py" --make-run "$2" ${{3:+--output "$3"}}
             ;;
+        log)
+            python3 "$LILAK_PATH/macros/lilak_log_viewer.py"
+            ;;
+        js)
+            shift
+            python3 "$LILAK_PATH/macros/lilak_js_launcher.py" "$@"
+            ;;
         par)
             if [ -z "$2" ]; then
                 python3 "$LILAK_PATH/macros/lilak_parameter_editor.py"
@@ -1588,6 +1652,10 @@ lilak() {{
             else
                 python3 "$LILAK_PATH/macros/lilak_si_mapping_editor.py" "$2"
             fi
+            ;;
+        get_viewer)
+            shift
+            python3 "$LILAK_PATH/macros/lilak_get_viewer_launcher.py" "$@"
             ;;
         g4sim)
             if [ -z "$2" ]; then
@@ -1607,7 +1675,80 @@ lilak() {{
             if [ -z "$2" ]; then
                 root -l -q -e 'auto run = new LKRun(); run -> SetCollectPar(); run -> Init();'
             else
-                root -l '{self.lilak_path}/macros/run_lilak.C("'"$2"'")'
+                local lilak_root_options=(-l)
+                if [ -f "$2" ] && awk '
+                    /^[[:space:]]*#/ {{ next }}
+                    $1 == "lilak/savex" {{
+                        value = tolower($2)
+                        enabled = (value == "true" || value == "1" || value == "yes" || value == "on")
+                    }}
+                    END {{ exit(enabled ? 0 : 1) }}
+                ' "$2"; then
+                    lilak_root_options+=(-b)
+                fi
+
+                if [ -f "$2" ] && [ "${{LILAK_RUN_FANOUT:-1}}" != 0 ] && [ "${{LILAK_RUN_FANOUT_ACTIVE:-0}}" != 1 ]; then
+                    local lilak_run_temp_dir
+                    local lilak_run_plan_file
+                    local lilak_run_log_file
+                    local lilak_selected_run
+                    local lilak_run_status=0
+                    local lilak_start_index=0
+                    local lilak_index
+                    local -a lilak_run_plan
+                    local -a lilak_run_ids
+
+                    lilak_run_temp_dir=$(mktemp -d "${{TMPDIR:-/tmp}}/lilak_run.XXXXXX") || return 1
+                    lilak_run_plan_file="$lilak_run_temp_dir/runs.txt"
+                    lilak_run_log_file="$lilak_run_temp_dir/resolve.log"
+                    if ! LILAK_RUN_PARAMETER_FILE="$2" LILAK_RUN_PLAN_FILE="$lilak_run_plan_file" \
+                        root -l -b -q "$LILAK_PATH/macros/resolve_lilak_run_ids.C" >"$lilak_run_log_file" 2>&1 \
+                        || [ ! -s "$lilak_run_plan_file" ]; then
+                        cat "$lilak_run_log_file" >&2
+                        rm -f -- "$lilak_run_plan_file" "$lilak_run_log_file"
+                        rmdir -- "$lilak_run_temp_dir"
+                        return 1
+                    fi
+
+                    mapfile -t lilak_run_plan < "$lilak_run_plan_file"
+                    lilak_selected_run="${{lilak_run_plan[0]}}"
+                    lilak_run_ids=("${{lilak_run_plan[@]:1}}")
+                    if (( ${{#lilak_run_ids[@]}} > 1 )) \
+                        || {{ (( ${{#lilak_run_ids[@]}} == 1 )) && [ "${{lilak_run_ids[0]}}" != "$lilak_selected_run" ]; }}; then
+                        if [ -n "${{START_RUN:-}}" ]; then
+                            while (( lilak_start_index < ${{#lilak_run_ids[@]}} )) \
+                                && [ "${{lilak_run_ids[lilak_start_index]}}" != "$START_RUN" ]; do
+                                ((lilak_start_index+=1))
+                            done
+                            if (( lilak_start_index == ${{#lilak_run_ids[@]}} )); then
+                                echo "Error: START_RUN=$START_RUN is not in lilak/run_list" >&2
+                                rm -f -- "$lilak_run_plan_file" "$lilak_run_log_file"
+                                rmdir -- "$lilak_run_temp_dir"
+                                return 2
+                            fi
+                            lilak_run_ids=("${{lilak_run_ids[@]:lilak_start_index}}")
+                        fi
+
+                        printf 'Run selection: %s -> %d runs\n' "$lilak_selected_run" "${{#lilak_run_ids[@]}}"
+                        for lilak_index in "${{!lilak_run_ids[@]}}"; do
+                            printf '[%d/%d] RUN=%s lilak run %s\n' \
+                                "$((lilak_index + 1))" "${{#lilak_run_ids[@]}}" \
+                                "${{lilak_run_ids[lilak_index]}}" "$2"
+                            if [ "${{DRY_RUN:-0}}" != 1 ]; then
+                                RUN="${{lilak_run_ids[lilak_index]}}" LILAK_RUN_FANOUT_ACTIVE=1 \
+                                    root "${{lilak_root_options[@]}}" '{self.lilak_path}/macros/run_lilak.C("'"$2"'")' \
+                                    || {{ lilak_run_status=$?; break; }}
+                            fi
+                        done
+                        rm -f -- "$lilak_run_plan_file" "$lilak_run_log_file"
+                        rmdir -- "$lilak_run_temp_dir"
+                        return "$lilak_run_status"
+                    fi
+
+                    rm -f -- "$lilak_run_plan_file" "$lilak_run_log_file"
+                    rmdir -- "$lilak_run_temp_dir"
+                fi
+                root "${{lilak_root_options[@]}}" '{self.lilak_path}/macros/run_lilak.C("'"$2"'")'
             fi
             ;;
         collect_par)
@@ -1616,8 +1757,18 @@ lilak() {{
                 return 1
             else
                 local source_par="$2"
+                local backup_par="${{source_par}}.old"
                 local temp_par
                 local temp_lilak
+                if [ ! -f "$source_par" ]; then
+                    echo "Error: Parameter file not found: $source_par"
+                    return 1
+                fi
+                if ! cp -p -- "$source_par" "$backup_par"; then
+                    echo "Error: Failed to create backup: $backup_par"
+                    return 1
+                fi
+                echo "Backup: $backup_par"
                 temp_par=$(mktemp "/tmp/lilak_collect_par.XXXXXX.mac")
                 temp_lilak=$(mktemp "/tmp/lilak_collect_lines.XXXXXX.txt")
                 cp "$source_par" "$temp_par"
@@ -1768,13 +1919,19 @@ EOF
 _lilak_completions() {{
     COMPREPLY=()
     local curr_word prev_word
+    local add_trailing_space=1
     curr_word="${{COMP_WORDS[COMP_CWORD]}}"
     prev_word="${{COMP_WORDS[COMP_CWORD-1]}}"
-    local commands="home configure build build_new new update example doc find make_meta make_run par si_mapping g4sim nptool run collect_par read draw {" ".join(self.lf_lilak_projects)}"
+    local commands="home configure build build_new new update example doc find make_meta make_run log js par si_mapping get_viewer g4sim nptool run collect_par read draw {" ".join(self.lf_lilak_projects)}"
     local subdir_projects="{" ".join(self.lf_lilak_projects)}"
 
     if [[ ${{COMP_CWORD}} == 1 ]]; then
-        COMPREPLY=( $(compgen -W "${{commands}}" -- "${{curr_word}}") )
+        # Complete r/ru as the run command, independent of run-prefixed files.
+        if [[ -n "${{curr_word}}" && "run" == "${{curr_word}}"* ]]; then
+            COMPREPLY=("run")
+        else
+            COMPREPLY=( $(compgen -W "${{commands}}" -- "${{curr_word}}") )
+        fi
     elif [[ $prev_word == "g4sim" ]]; then
         COMPREPLY=( $(compgen -f "${{curr_word}}") )
     elif [[ $prev_word == "nptool" ]]; then
@@ -1795,6 +1952,18 @@ _lilak_completions() {{
         COMPREPLY=( $(compgen -f "${{curr_word}}") )
     elif [[ $prev_word == "si_mapping" ]]; then
         COMPREPLY=( $(compgen -f "${{curr_word}}") )
+    elif [[ ${{COMP_WORDS[1]}} == "get_viewer" && "$prev_word" == "-I" ]]; then
+        COMPREPLY=()
+    elif [[ ${{COMP_WORDS[1]}} == "get_viewer" && "$prev_word" =~ ^(-M|--mapping|-B|--browse-path)$ ]]; then
+        COMPREPLY=( $(compgen -d "${{curr_word}}") )
+    elif [[ ${{COMP_WORDS[1]}} == "get_viewer" && "$curr_word" == -* ]]; then
+        COMPREPLY=( $(compgen -W "-K -L -F -I -M --mapping -B --browse-path --no-browser -h" -- "${{curr_word}}") )
+    elif [[ ${{COMP_WORDS[1]}} == "get_viewer" ]]; then
+        COMPREPLY=( $(compgen -f "${{curr_word}}") )
+    elif [[ ${{COMP_WORDS[1]}} == "js" && "$prev_word" =~ ^-(S|P|R|D)$ ]]; then
+        COMPREPLY=( $(compgen -f "${{curr_word}}") )
+    elif [[ ${{COMP_WORDS[1]}} == "js" ]]; then
+        COMPREPLY=( $(compgen -W "-K -I -S -P -R -D -h" -- "${{curr_word}}") )
     elif [[ ${{COMP_CWORD}} == 2 && " $subdir_projects " =~ " ${{COMP_WORDS[1]}} " ]]; then
         local project_path="$LILAK_PATH/${{COMP_WORDS[1]}}"
         if [ -d "$project_path" ]; then
@@ -1803,14 +1972,33 @@ _lilak_completions() {{
         fi
     fi
 
+    if [[ -z "${{ZSH_VERSION:-}}" ]] && (( add_trailing_space && ${{#COMPREPLY[@]}} == 1 )); then
+        COMPREPLY=("${{COMPREPLY[@]}} ")
+    fi
+
     return 0
 }}
 
-# Enable command completion for lilak
-complete -F _lilak_completions lilak
+# zsh's bashcompinit cannot change the suffix from inside a completion function.
+if [[ -n "${{ZSH_VERSION:-}}" ]]; then
+    _lilak_zsh_completions() {{
+        emulate -L zsh
+        setopt KSH_ARRAYS SH_WORD_SPLIT
+        local -a COMP_WORDS COMPREPLY
+        local COMP_CWORD
+        COMP_WORDS=("${{words[@]}}")
+        COMP_CWORD=$((CURRENT - 1))
+        _lilak_completions
+
+        compadd -- "${{COMPREPLY[@]}}"
+    }}
+    compdef _lilak_zsh_completions lilak
+else
+    complete -o nospace -F _lilak_completions lilak
+fi
 
 # Optional: Add a message to confirm the script is sourced correctly
-#echo "LILAK is set. Use 'lilak {{home|configure|build|build_new|new|update|example|doc|find|make_meta|make_run|par|g4sim|nptool|run}}'"
+#echo "LILAK is set. Use 'lilak {{home|configure|build|build_new|new|update|example|doc|find|make_meta|make_run|log|par|g4sim|nptool|run}}'"
 """
         fn_lilak_command_sh = os.path.join(self.lilak_path, "macros/command_lilak.sh")
         with open(fn_lilak_command_sh, "w") as lilak_command_sh_file:
@@ -1846,8 +2034,12 @@ complete -F _lilak_completions lilak
 
         new_contents = f"""{{
     TString message = "libs: ";
-    TString libName = TString(gSystem->Getenv("LILAK_PATH"))+"/build/libLILAK";
-    int loadv = gSystem -> Load(libName);
+    TString libName;
+    int loadv = -1;
+{nplib_loader_block}
+
+    libName = TString(gSystem->Getenv("LILAK_PATH"))+"/build/libLILAK";
+    loadv = gSystem -> Load(libName);
     if (loadv == 0 || loadv == 1) {{
         message = message + "LILAK ";
         gROOT -> ProcessLine("#include \\"LKCompiled.h\\"");
@@ -1855,7 +2047,6 @@ complete -F _lilak_completions lilak
     else {{
         cout << "Error while loading " << libName << endl;
     }}
-{nplib_loader_block}
 
     cout << message << endl;
 

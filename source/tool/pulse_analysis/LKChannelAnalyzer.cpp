@@ -1,8 +1,11 @@
+#include <algorithm>
 #include <cmath>
+#include <stdexcept>
 #include "LKChannelAnalyzer.h"
 #include "TLine.h"
 #include "TLegend.h"
 #include "LKMisc.h"
+#include "LKParameterContainer.h"
 
 ClassImp(LKChannelAnalyzer);
 
@@ -32,6 +35,80 @@ void LKChannelAnalyzer::SetPulse(const char* fileName)
     if (fDataIsInverted)
         fPulse -> SetInverted();
 
+    ConfigureFromPulse();
+}
+
+void LKChannelAnalyzer::SetPulse(LKParameterContainer* par, TString groupName)
+{
+    fPulse = new LKPulse(par, groupName);
+    if (fPulse->IsGood()==false) {
+        e_error << "Pulse is not initialized correctly. Using default mode kSigAtMaximumMode" << endl;
+        return;
+    }
+
+    fAnalyzerMode = kPulseFittingMode;
+
+    if (fDataIsInverted)
+        fPulse -> SetInverted();
+
+    ConfigureFromPulse();
+}
+
+void LKChannelAnalyzer::SetUsePulseFunction(bool value)
+{
+    if (fPulse==nullptr)
+        fPulse = new LKPulse();
+
+    fPulse -> SetUsePulseFunction(value);
+    fAnalyzerMode = kPulseFittingMode;
+    ConfigureFromPulse();
+}
+
+void LKChannelAnalyzer::SetPulseFunctionParameters(double baseline, double peak, double t0, double alpha, double tau)
+{
+    if (fPulse==nullptr)
+        fPulse = new LKPulse();
+
+    fPulse -> SetPulseFunctionParameters(baseline, peak, t0, alpha, tau);
+    fPulse -> SetUsePulseFunction(true);
+    fAnalyzerMode = kPulseFittingMode;
+    ConfigureFromPulse();
+}
+
+void LKChannelAnalyzer::SetPulseFunctionRange(double tbMin, double tbMax)
+{
+    if (fPulse==nullptr)
+        fPulse = new LKPulse();
+
+    fPulse -> SetPulseFunctionRange(tbMin, tbMax);
+    fPulse -> SetUsePulseFunction(true);
+    fAnalyzerMode = kPulseFittingMode;
+    ConfigureFromPulse();
+}
+
+void LKChannelAnalyzer::FixPulseFunctionAlpha(bool value)
+{
+    if (fPulse==nullptr)
+        fPulse = new LKPulse();
+    fPulse -> FixPulseFunctionAlpha(value);
+}
+
+void LKChannelAnalyzer::FixPulseFunctionTau(bool value)
+{
+    if (fPulse==nullptr)
+        fPulse = new LKPulse();
+    fPulse -> FixPulseFunctionTau(value);
+}
+
+TF1* LKChannelAnalyzer::GetPulseFunction(TString name, bool subtractBaseline)
+{
+    if (fPulse==nullptr)
+        fPulse = new LKPulse();
+    return fPulse -> GetPulseFunction(name, subtractBaseline);
+}
+
+void LKChannelAnalyzer::ConfigureFromPulse()
+{
     auto numPulsePoints = fPulse -> GetNDF();
     fDataIsInverted = fPulse -> GetInverted();
     fFWHM           = fPulse -> GetFWHM();
@@ -49,8 +126,8 @@ void LKChannelAnalyzer::SetPulse(const char* fileName)
     fTbStepIfFoundHit = fNDFFit;
     fTbStepIfSaturated = int(fWidth*1.2);
     fTbSeparationWidth = fNDFFit;
-    if (fTbStartCut<0)
-        fTbStartCut = fTbMax - fNDFFit;
+    if (fTbEnd<0)
+        fTbEnd = fTbMax - fNDFFit;
     fNumTbAcendingCut = int(fWidthLeading*2/3);
 
     Init();
@@ -59,6 +136,7 @@ void LKChannelAnalyzer::SetPulse(const char* fileName)
 void LKChannelAnalyzer::Clear(Option_t *option)
 {
     fPedestal = 0;
+    fNoiseScale = 0;
     fDynamicRange = fDynamicRangeOriginal;
     fNumHits = 0;
     fFitParameterArray.clear();
@@ -96,7 +174,7 @@ void LKChannelAnalyzer::Print(Option_t *option) const
         e_info << "== General" << endl;
         e_info << "   fTbMax             = " << fTbMax               << endl;
         e_info << "   fTbStart           = " << fTbStart             << endl;
-        e_info << "   fTbStartCut        = " << fTbStartCut          << endl;
+        e_info << "   fTbEnd             = " << fTbEnd               << endl;
         e_info << "   fNumTbAcendingCut  = " << fNumTbAcendingCut    << endl;
         e_info << "   fDynamicRange      = " << fDynamicRange        << endl;
         e_info << "   fDataIsInverted    = " << fDataIsInverted      << endl;
@@ -127,7 +205,7 @@ void LKChannelAnalyzer::Print(Option_t *option) const
         e_info << "   fThreshold         = " << fThreshold           << endl;
         e_info << "   fTbMax             = " << fTbMax               << endl;
         e_info << "   fTbStart           = " << fTbStart             << endl;
-        e_info << "   fTbStartCut        = " << fTbStartCut          << endl;
+        e_info << "   fTbEnd             = " << fTbEnd               << endl;
         e_info << "   fNumTbAcendingCut  = " << fNumTbAcendingCut    << endl;
         e_info << "   fDynamicRange      = " << fDynamicRange        << endl;
         e_info << "   fDataIsInverted    = " << fDataIsInverted      << endl;
@@ -138,7 +216,7 @@ void LKChannelAnalyzer::Print(Option_t *option) const
         e_info << "   fThreshold         = " << fThreshold           << endl;
         e_info << "   fTbMax             = " << fTbMax               << endl;
         e_info << "   fTbStart           = " << fTbStart             << endl;
-        e_info << "   fTbStartCut        = " << fTbStartCut          << endl;
+        e_info << "   fTbEnd             = " << fTbEnd               << endl;
         e_info << "   fNumTbAcendingCut  = " << fNumTbAcendingCut    << endl;
         e_info << "   fDynamicRange      = " << fDynamicRange        << endl;
         e_info << "   fDataIsInverted    = " << fDataIsInverted      << endl;
@@ -421,7 +499,8 @@ void LKChannelAnalyzer::AnalyzeSigAtMaximum()
 {
     int tbHit = 0;
     double amplitude = -DBL_MAX;
-    for (auto tb=0; tb<fTbMax; ++tb) {
+    int tbEnd = (fTbEnd < 0 ? fTbMax : std::min(fTbEnd, fTbMax));
+    for (auto tb=std::max(fTbStart, 0); tb<tbEnd; ++tb) {
         if (amplitude<fBuffer[tb]) {
             tbHit = tb;
             amplitude = fBuffer[tb];
@@ -443,7 +522,8 @@ void LKChannelAnalyzer::AnalyzeSigAtThreshold()
     int tMax = 0;
     double xMin, xMax, width, integral;
     double amplitude = -DBL_MAX;
-    for (auto tb=0; tb<fTbMax; ++tb)
+    int tbEnd = (fTbEnd < 0 ? fTbMax : std::min(fTbEnd, fTbMax));
+    for (auto tb=std::max(fTbStart, 0); tb<tbEnd; ++tb)
     {
         auto value = fBuffer[tb];
         if (tbAtThreshold<0 && value>fThreshold)
@@ -510,7 +590,7 @@ void LKChannelAnalyzer::AnalyzePulseFitting()
 #ifdef DEBUG_CHANA_ANALYZE
             lk_debug << tbPointer << " " << tbStartOfPulse << endl;
 #endif
-            if (tbStartOfPulse > fTbStartCut-1)
+            if (tbStartOfPulse > fTbEnd-1)
                 break;
 
             bool isSaturated = false;
@@ -540,8 +620,81 @@ void LKChannelAnalyzer::AnalyzePulseFitting()
     }
 }
 
+void LKChannelAnalyzer::SetPedestalTbRange(int first, int last)
+{
+    if (!((first == -1 && last == -1) || (first >= 0 && first <= last && last < fTbMax)))
+        throw std::invalid_argument("Invalid inclusive pedestal TB range");
+    fPedestalTbFirst = first;
+    fPedestalTbLast = last;
+}
+
+void LKChannelAnalyzer::SetBipolarPercentRange(double minimum, double maximum)
+{
+    if (!std::isfinite(minimum) || !std::isfinite(maximum) || minimum <= 0 || maximum < minimum)
+        throw std::invalid_argument("Invalid bipolar percent range");
+    fBipolarMinPercent = minimum;
+    fBipolarMaxPercent = maximum;
+}
+
+void LKChannelAnalyzer::SetBipolarWindow(int window)
+{
+    if (window < 1 || window >= fTbMax) throw std::invalid_argument("Invalid bipolar window");
+    fBipolarWindow = window;
+}
+
+bool LKChannelAnalyzer::IsBipolar() const
+{
+    return IsBipolar(fBipolarMinPercent/100., fBipolarMaxPercent/100., fBipolarWindow);
+}
+
+bool LKChannelAnalyzer::IsBipolar(double minRatio, double maxRatio, int window) const
+{
+    if (minRatio <= 0 || maxRatio < minRatio || window < 1) return false;
+    // Use the original waveform: pulse fitting can modify fBuffer.
+    for (int i=0; i<fNumHits; ++i) {
+        int center = std::max(0, std::min(fTbMax-1, int(GetTbHit(i))));
+        int peak = center;
+        const int first = std::max(0, center-window);
+        const int last = std::min(fTbMax-1, center+window);
+        for (int tb=first; tb<=last; ++tb)
+            if (fBufferOrigin[tb] > fBufferOrigin[peak]) peak = tb;
+        const double amplitude = fBufferOrigin[peak] - fPedestal;
+        if (amplitude <= 0) continue;
+        const int lo = std::max(0, peak-window);
+        const int hi = std::min(fTbMax-1, peak+window);
+        int trough = lo;
+        for (int tb=lo; tb<=hi; ++tb)
+            if (fBufferOrigin[tb] < fBufferOrigin[trough]) trough = tb;
+        const double opposite = fPedestal - fBufferOrigin[trough];
+        const double ratio = opposite/amplitude;
+        // Require an interior trough and recovery on both sides (also accepts clipped troughs).
+        if (trough > 0 && trough < fTbMax-1 && ratio >= minRatio && ratio <= maxRatio) {
+            const int left = std::max(0, trough-window);
+            const int right = std::min(fTbMax-1, trough+window);
+            if (fBufferOrigin[left] > fBufferOrigin[trough] + 0.5*opposite &&
+                fBufferOrigin[right] > fBufferOrigin[trough] + 0.5*opposite) return true;
+        }
+    }
+    return false;
+}
+
 double LKChannelAnalyzer::FindAndSubtractPedestal(double *buffer)
 {
+    if (fPedestalTbFirst >= 0) {
+        double mean = 0, m2 = 0;
+        int n = 0;
+        for (int tb=fPedestalTbFirst; tb<=fPedestalTbLast; ++tb) {
+            const double delta = buffer[tb] - mean;
+            mean += delta / ++n;
+            m2 += delta * (buffer[tb] - mean);
+        }
+        fPedestal = mean;
+        fNoiseScale = std::sqrt(std::max(0.0, m2 / n));
+        for (int tb=0; tb<fTbMax; ++tb) buffer[tb] -= mean;
+        fDynamicRange -= mean;
+        return mean;
+    }
+
     for (auto i=0; i<fNumPedestalSamples; ++i) {
         fUsedSample[i] = false;
         fPedestalSample[i] = 0.;
@@ -687,8 +840,18 @@ double LKChannelAnalyzer::FindAndSubtractPedestal(double *buffer)
     lk_debug << pedestalFinal << endl;
 #endif
 
-    for (auto iTb=0; iTb<fTbMax; ++iTb)
-        buffer[iTb] = buffer[iTb] - pedestalFinal;
+    double noiseSum = 0;
+    int noiseCount = 0;
+    for (int tb=0; tb<fTbMax; ++tb) {
+        const int sample = std::min(tb/fNumTbSample, fNumPedestalSamplesM1);
+        if (fUsedSample[sample]) {
+            const double delta = buffer[tb] - pedestalFinal;
+            noiseSum += delta * delta;
+            ++noiseCount;
+        }
+        buffer[tb] -= pedestalFinal;
+    }
+    fNoiseScale = noiseCount ? std::sqrt(noiseSum/noiseCount) : 0;
 
     fDynamicRange = fDynamicRange - pedestalFinal;
 
@@ -834,6 +997,53 @@ bool LKChannelAnalyzer::FitPulse(double *buffer, int tbStartOfPulse, int tbPeak,
         isSaturated = true;
     }
 
+    if (fUseRootPulseFit && !isSaturated && fPulse!=nullptr && fPulse->UsesPulseFunction())
+    {
+        int fitTb1 = tbStartOfPulse + fPulseRefTbMin;
+        int fitTb2 = tbStartOfPulse + fPulseRefTbMax;
+        if (fitTb1<0)
+            fitTb1 = 0;
+        if (fitTb2>fTbMax)
+            fitTb2 = fTbMax;
+
+        if (fitTb2-fitTb1>5)
+        {
+            auto histFit = new TH1D(Form("histFitPulse_%p",this),";tb;ADC above pedestal",fTbMax,0,fTbMax);
+            for (auto tb=fitTb1; tb<fitTb2; ++tb)
+                histFit -> SetBinContent(tb+1,buffer[tb]);
+
+            auto funcFit = fPulse -> GetPulseFunction(Form("funcFitPulse_%p",this), false);
+            funcFit -> SetRange(fitTb1,fitTb2);
+            funcFit -> SetParameter(0,0);
+            funcFit -> FixParameter(0,0);
+            funcFit -> SetParameter(1,valuePeak);
+            funcFit -> SetParLimits(1,0,fDynamicRange*2);
+            funcFit -> SetParameter(2,tbStartOfPulse);
+            funcFit -> SetParLimits(2,tbStartOfPulse+fPulseRefTbMin,tbStartOfPulse+fWidthLeading);
+
+            auto fitStatus = histFit -> Fit(funcFit,"RQN0");
+            if (fitStatus==0)
+            {
+                auto ndfFit = funcFit -> GetNDF();
+                auto amplitudeFit = funcFit -> GetParameter(1);
+                auto tbHitFit = funcFit -> GetParameter(2);
+                if (ndfFit>0 && amplitudeFit>0 && !std::isnan(tbHitFit))
+                {
+                    tbHit = tbHitFit;
+                    amplitude = amplitudeFit;
+                    chi2Fitted = funcFit -> GetChisquare()/ndfFit;
+                    ndf = ndfFit;
+                    delete histFit;
+                    delete funcFit;
+                    return true;
+                }
+            }
+
+            delete histFit;
+            delete funcFit;
+        }
+    }
+
     LKTbIterationParameters par;
     par.SetScaleTbStep(fScaleTbStep);
 
@@ -912,9 +1122,9 @@ bool LKChannelAnalyzer::FitPulse(double *buffer, int tbStartOfPulse, int tbPeak,
         tbStep = par.TbStep();
         tbCurr = par.NextTb(tbPrev);
 
-        if (tbCurr<0 || tbCurr>fTbStartCut) {
+        if (tbCurr<0 || tbCurr>fTbEnd) {
 #ifdef DEBUG_CHANA_FITPULSE
-            lk_debug << "break(" << countIteration << ") tbCur<0 || tbCur<fTbStartCut : " << tbCurr << " " << fTbStartCut << endl;
+            lk_debug << "break(" << countIteration << ") tbCurr<0 || tbCurr>fTbEnd : " << tbCurr << " " << fTbEnd << endl;
 #endif
             return false;
         }
