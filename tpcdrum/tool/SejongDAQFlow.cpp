@@ -83,6 +83,7 @@ DAQList SejongDAQFlow::GetDAQList(vector<TString> fileList)
     for(int asad=0; asad<ASADNUM; asad++){
 
         int findDAQNum = 0;
+        int iterNum = 0;
         while(!(findDAQNum == tmpAsAdFile[asad].size())){
             for(int i=0; i<tmpAsAdFile[asad].size(); i++){
                 int numberIdx = tmpAsAdFile[asad][i].Index(".graw")-4;
@@ -96,6 +97,11 @@ DAQList SejongDAQFlow::GetDAQList(vector<TString> fileList)
                     findDAQNum++;
                 }
             }
+            if(iterNum > 100){
+                cerr << "SejongDAQFlow::GetDAQList === AsAd" << asad << " not have " << findDAQNum << " th file!!!  terminate... " << endl;
+                std::terminate();
+            }
+            iterNum++;
         }
 
         queue<TString> tmpQueue;
