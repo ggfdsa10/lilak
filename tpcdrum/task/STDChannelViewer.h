@@ -1,6 +1,8 @@
 #ifndef STDChannelViewer_HH
 #define STDChannelViewer_HH
 
+#include <tuple>
+
 #include "LKRun.h"
 #include "LKTask.h"
 #include "LKContainer.h"
@@ -9,6 +11,7 @@
 
 #include "TPCDrum.h"
 #include "STDPadPlane.h"
+#include "STDSiArray.h"
 #include "LKHit.h"
 #include "TClonesArray.h"
 
@@ -36,6 +39,7 @@ class STDChannelViewer : public LKTask
     private:
         TPCDrum *fDetector = nullptr;
         STDPadPlane *fPadPlane = nullptr;
+        STDSiArray *fSiArray = nullptr;
 
         TClonesArray* fChannelArray = nullptr;
         GETChannel* fChannel = nullptr;
@@ -44,13 +48,19 @@ class STDChannelViewer : public LKTask
         bool fIsOnEventFigure;
         TCanvas* cEvent = nullptr;
         TLatex* cTatex;
-        TH2Poly* hPoly = nullptr;
-        TH2Poly* hPolyTotal = nullptr;
-        TH2Poly* hBoundary = nullptr;
+
+        TH2Poly* hPadPoly = nullptr;
+        TH2Poly* hSiPoly[8];
+        TH2Poly* hPadPolyTotal = nullptr;
+        TH2Poly* hSiPolyTotal[8];
+        TH2Poly* hBasePadPoly = nullptr;
+        TH2Poly* fBaseSiPoly = nullptr;
+
+        TGraph* gSiPos = nullptr;
 
         TH1D* hHitNum = nullptr;
         TH1D* hSumADC = nullptr;
-        TH2D* hChannel[4];
+        TH2D* hChannel[3];
         TH1D* hChanTest[4][68];
 
         TString fRunNum;
