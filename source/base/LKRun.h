@@ -127,6 +127,10 @@ class LKRun : public LKVirtualRun
         void AddParAfter(TString fname) { fParAddAfter = fname; }
 
         void SetLILAKRun(bool allow_execution=true) { fIsLILAKRun = true; fAllowLILAKRun = allow_execution; }
+        /// Init only to look at the configuration: the output goes to a removed temporary file, the init log to
+        /// the temporary directory (printed as "Dry init log:"), no elog push, no run. Used by lilak collect_par
+        /// and the parameter editor's configure.
+        void SetDryInit(bool dry=true) { fDryInit = dry; }
 
         void SetCollectPar(TString configName="") { fCollectParAndPrintTo = (configName.IsNull()?"lilak_configure":configName); }
         void SetCollectSubPar(TString configName="") { fCollectSubParAndPrintTo = (configName.IsNull()?"lilak_configure":configName); }
@@ -274,6 +278,9 @@ class LKRun : public LKVirtualRun
         bool ExecuteLastEvent() { return ExecuteEvent(-5); }
 
         bool CheckMute(Long64_t eventCount=-1) { if (eventCount<0) eventCount = fEventCount; return (eventCount==0||eventCount%fEventCountForMessage!=0); }
+        /// Stop remaining tasks for this event; output suppression is a separate decision.
+        void StopCurrentEvent();
+        void ExecuteTask(Option_t *option="0") override;
         void DoNotFillCurrentEvent() { fFillCurrentEvent = false; }
 
         /// Search input files with given LKRun/RunID.
@@ -297,6 +304,12 @@ class LKRun : public LKVirtualRun
 
     protected:
         void ProcessWriteExitLog();
+        void ConfigureElogHook();
+        bool LoadElogConfigFile(TString fileName="meta/elog_config.json");
+        TString ExtractElogJsonString(TString text, TString key) const;
+        bool SendElogRunHook(TString runType);
+        bool PostElogLog(TString payload);
+        TString EscapeElogJson(TString value) const;
 
     private:
         bool fRunNameIsSet = false;
@@ -408,10 +421,12 @@ class LKRun : public LKVirtualRun
         TObjArray* fUserDrawingArray = nullptr;
 
         bool fDrawAfterRun = false;
+        bool fSaveX = false;
         TString fDrawOption;
 
         bool fIsLILAKRun = false;
         bool fAllowLILAKRun = true;
+        bool fDryInit = false;
 
         TString fCollectParAndPrintTo = "";
         TString fCollectSubParAndPrintTo = "";
@@ -420,8 +435,15 @@ class LKRun : public LKVirtualRun
         LKDataViewer* fDataViewer = nullptr;
         LKDrawingGroup* fTopDrawingGroup = nullptr;
 
+        bool fElogEnabled = false;
+        TString fElogURL = "";
+        TString fElogToken = "";
+        Int_t fElogTimeout = 5;
+
     private:
         static LKRun *fInstance;
+
+        bool fStopCurrentEvent = false; //! transient execution state
 
     ClassDef(LKRun, 1)
 };

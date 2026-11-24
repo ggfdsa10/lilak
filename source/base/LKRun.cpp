@@ -4,6 +4,14 @@
 #include <sstream>
 #include <map>
 #include <vector>
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
+#include <fcntl.h>
+#include <netdb.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 
 #include "TEnv.h"
 #include "TStyle.h"
@@ -13,6 +21,8 @@
 #include "TObjString.h"
 #include "TApplication.h"
 #include "TEntryList.h"
+#include "TDirectory.h"
+#include "TROOT.h"
 
 #include "TSystemDirectory.h"
 #include "TSystemFile.h"
@@ -23,6 +33,38 @@
 #include "LKMisc.h"
 
 ClassImp(LKRun)
+
+namespace
+{
+int WriteDrawingCanvases(LKDrawingGroup* group, TDirectory* hitPatternDirectory,
+                         TDirectory* otherDirectory, int& numHitPatternCanvases)
+{
+    if (group == nullptr || hitPatternDirectory == nullptr || otherDirectory == nullptr)
+        return 0;
+
+    if (group->IsGroupGroup()) {
+        int count = 0;
+        for (auto iGroup=0; iGroup<group->GetNumGroups(); ++iGroup)
+            count += WriteDrawingCanvases(group->GetGroup(iGroup),hitPatternDirectory,
+                                           otherDirectory,numHitPatternCanvases);
+        return count;
+    }
+
+    auto canvas = group->GetCanvas();
+    if (canvas == nullptr)
+        return 0;
+
+    TString keyName = group->GetFullName();
+    keyName.ReplaceAll(":", "_");
+    const bool isHitPattern = TString(group->GetName()) == "hit_pattern";
+    auto canvasDirectory = isHitPattern ? hitPatternDirectory : otherDirectory;
+    if (isHitPattern)
+        ++numHitPatternCanvases;
+    canvasDirectory->cd();
+    canvas->Write(keyName, TObject::kOverwrite);
+    return 1;
+}
+}
 
 LKRun* LKRun::fInstance = nullptr;
 
@@ -95,18 +137,6 @@ LKRun::LKRun(TString runName, Int_t id, Int_t division, TString tag)
     CreateParameterContainer();
 
     AlwaysPrintMessage();
-
-    {
-        time_t start_time = time(0);
-        time_t tt_start_time = start_time;
-        struct tm *now = localtime(&tt_start_time);
-        TString ymd = Form("%04d%02d%02d",now->tm_year+1900,now->tm_mon+1,now->tm_mday);
-        TString hms = Form("%02d%02d%02d",now->tm_hour,now->tm_min,now->tm_sec);
-        TString stamp_name = "";//TString("ready_") + ymd + "_" + hms + ".log";
-        TString lastLogName = TString(LILAK_PATH) + "/data/lk_last_output.log";
-        unlink(lastLogName.Data());
-        symlink(fLogFileName1.Data(), lastLogName.Data());
-    }
 }
 
 void LKRun::PrintLILAK()
@@ -601,6 +631,13 @@ bool LKRun::Init()
         return fInitialized;
     fRunInit = true;
 
+    if (!fDryInit) {
+        // Empty until this run writes its init log: the parameter editor reads a failed run from that.
+        TString lastLogName = TString(LILAK_PATH) + "/data/lk_last_output.log";
+        unlink(lastLogName.Data());
+        symlink(fLogFileName1.Data(), lastLogName.Data());
+    }
+
     if (fInitialized)
         fInitialized = false;
 
@@ -613,6 +650,7 @@ bool LKRun::Init()
 
     TString printAfterInit = "";
     Long64_t runAfterInit = -1;
+    Long64_t onlineAfterInit = -1;
     Long64_t exeAfterInit = -1;
     bool drawAfterRun = false;
     TString drawOption = "";
@@ -641,6 +679,9 @@ bool LKRun::Init()
             if (verbose>0) lk_debug << parameter->GetString() << endl;
             classFactory.Add(parameter->GetString());
         }
+        if (lilakPar->CheckPar("online")) {
+            onlineAfterInit = lilakPar -> GetParLong("online");
+        }
         if (lilakPar->CheckPar("run")) {
             runAfterInit = lilakPar -> GetParLong("run");
             //runAfterInit = lilakPar -> GetParLong("run",0);
@@ -655,6 +696,11 @@ bool LKRun::Init()
             exeAfterInit = lilakPar -> GetParLong("execute");
         if (lilakPar->CheckPar("auto_exit"))
             fAutoTerminate = lilakPar -> GetParBool("auto_exit");
+        if (lilakPar->CheckPar("savex")) {
+            fSaveX = lilakPar -> GetParBool("savex");
+            if (fSaveX)
+                gROOT->SetBatch(kTRUE);
+        }
         if (lilakPar->CheckPar("print")) {
             printAfterInit = lilakPar -> GetParString("print");
             if (printAfterInit.IsNull())
@@ -682,6 +728,7 @@ bool LKRun::Init()
     fPar -> Require("lilak/run",          "0",              "run [no] after init. Execute all events if [no] is 0", "t/", countParOrder++);
     fPar -> Require("lilak/draw",         "0",              "execute Draw()", "t/", countParOrder++);
     fPar -> Require("lilak/execute",      "0",              "execute event [no] after init", "t/", countParOrder++);
+    fPar -> Require("lilak/savex",        "false",          "draw in batch mode and save canvases in output ROOT file", "t/", countParOrder++);
 
     if (!fCollectParAndPrintTo.IsNull())
     {
@@ -733,10 +780,10 @@ bool LKRun::Init()
     fPar -> Require("LKRun/Tag",          "tag",            "tag",             "t", countParOrder++);
     fPar -> Require("LKRun/OutputPath",   "{lilak_data}",   "path to the output. Default path {lilak_data} is lilak/data/",  "", countParOrder++);
     fPar -> Require("LKRun/InputPath",    "/path/to/in/",   "LKRun will search files from input paths when LKRun/SearchRun", "t/", countParOrder++);
-    fPar -> Require("LKRun/SearchRun",    "mfm",            "search input files with LKRun/RunID. opt=mfm: search mfm files, opt=[tag]: search run_runNo.*.[tag].root", "t", countParOrder++);
+    fPar -> Require("LKRun/SearchRun",    "mfm",            "search input files with LKRun/RunID. opt=mfm: search mfm files, opt=[tag]: search run_runNo.*.[tag].root", "t/", countParOrder++);
     fPar -> Require("LKRun/AutoTerminate","true",           "automatically terminate root after end of run", "t", countParOrder++);
     fPar -> Require("LKRun/Division",     0,                "division within the run [optional]", "t/", countParOrder++);
-    fPar -> Require("LKRun/InputFile",    "to/input/file",  "input file. Cannot be used with LKRun/SearchRun", "t", countParOrder++);
+    fPar -> Require("LKRun/InputFile",    "to/input/file",  "input file. Cannot be used with LKRun/SearchRun", "t/", countParOrder++);
     fPar -> Require("LKRun/FriendFile",   "to/friend/file", "input friend file",                  "t/", countParOrder++);
     fPar -> Require("LKRun/RunIDList",    "1, 2, 3, 4",     "list of run numbers separated by ,", "t/", countParOrder++);
     fPar -> Require("LKRun/RunIDRange",   "1, 10",          "list of run numbers ranged by ,",    "t/", countParOrder++);
@@ -744,6 +791,10 @@ bool LKRun::Init()
     fPar -> Require("LKRun/EventCountForMessage", 20000,    "",                                   "t", countParOrder++);
     fPar -> Require("LKRun/UpdateOutputFile",     false,    "update root file with option update","t/", countParOrder++);
     fPar -> Require("LKRun/FileName",             "",       "file name will be fixed to this name if it is not null string","t/", countParOrder++);
+    fPar -> Require("LKRun/ElogEnable",           false,    "enable lilak_elog push from LKRun::Init() and LKRun::EndOfRun()", "t/", countParOrder++);
+    fPar -> Require("LKRun/ElogURL",              "",       "lilak_elog origin URL fallback if ELOG_URL env and meta/elog_config.json are not set", "t/", countParOrder++);
+    fPar -> Require("LKRun/ElogToken",            "",       "lilak_elog API token fallback if ELOG_TOKEN env and meta/elog_config.json are not set", "t/", countParOrder++);
+    fPar -> Require("LKRun/ElogTimeout",          5,        "HTTP connection/read timeout in seconds for lilak_elog push", "t/", countParOrder++);
 
     if (!fRunNameIsSet) {
         fPar -> UpdatePar(fRunName,  "LKRun/Name");
@@ -895,7 +946,7 @@ bool LKRun::Init()
     if (!fInputFileName.IsNull()) {
         e_cout << endl;
         if (!LKRun::CheckFileExistence(fInputFileName)) {
-            lk_info << "Given input file deos not exist! " << fInputFileName << endl;
+            lk_info << "Given input file does not exist! " << fInputFileName << endl;
             return false;
         }
         fInputFile = new TFile(fInputFileName, "read");
@@ -1065,6 +1116,15 @@ bool LKRun::Init()
         fOuputHash = GetFileHash(fOutputFileName);
     }
 
+    // Dry init (SetDryInit) must not overwrite an existing output file: the output goes to a temporary file
+    // that is unlinked right away, and the run header keeps the file it would have written.
+    TString intendedOutputFileName = fOutputFileName;
+    intendedOutputFileName.ReplaceAll("//","/");
+    if (fDryInit && !fOutputFileName.IsNull()) {
+        lk_info << "Dry init: output file would be " << intendedOutputFileName << " (not written)" << endl;
+        fOutputFileName = Form("%s/lilak_dry_init_%d.root", gSystem->TempDirectory(), gSystem->GetPid());
+    }
+
     if (!fOutputFileName.IsNull())
     {
         if (LKRun::CheckFileExistence(fOutputFileName)) {}
@@ -1086,6 +1146,8 @@ bool LKRun::Init()
             fOutputFile = new TFile(fOutputFileName, "recreate");
             fOutputTree = new TTree("event", "");
         }
+        if (fDryInit)
+            gSystem -> Unlink(fOutputFileName);
     }
 
     if (!fOutputFileName.IsNull() && !fInputFileName.IsNull()) {
@@ -1115,7 +1177,7 @@ bool LKRun::Init()
             fRunHeader -> AddPar(Form("InputFile/%d",iInput),fInputFileNameArray[iInput]);
         for (Int_t iFriend = idxInput; iFriend < fFriendFileNameArray.size(); iFriend++)
             fRunHeader -> AddPar(Form("FriendFile/%d",iFriend),fFriendFileNameArray[iFriend]);
-        fRunHeader -> AddPar("OutputFile",fOutputFileName);
+        fRunHeader -> AddPar("OutputFile",fDryInit ? intendedOutputFileName : fOutputFileName);
         fRunHeader -> AddPar("RunName",fRunName);
         fRunHeader -> AddPar("FileName",fFileName);
         fRunHeader -> AddPar("RunID",fRunID);
@@ -1149,6 +1211,14 @@ bool LKRun::Init()
             auto plane = fDetectorSystem -> GetDetectorPlane(iPlane);
             fRunHeader -> AddPar(Form("DetectorPlane/%d",countPlanes++),plane->GetName());
         }
+    }
+
+    // Input branches are normally read-only. If persistency/<branch> is set,
+    // keep the existing input branch in the output tree automatically.
+    for (auto branchName : fBranchNames) {
+        TString persistencyParName = TString("persistency/") + branchName;
+        if (fPar -> CheckPar(persistencyParName) && fPar -> GetParBool(persistencyParName))
+            KeepBranchA(branchName);
     }
 
     for (Int_t iBranch = 0; iBranch < fCountBranches; iBranch++) {
@@ -1195,6 +1265,7 @@ bool LKRun::Init()
     fCurrentEventID = 0;
 
     fPar -> UpdatePar(fAutoTerminate,"LKRun/AutoTerminate false # automatically terminate root after end of run");
+    ConfigureElogHook();
     fPar -> Sort();
 
     if (fPar -> CheckPar("LKRun/EventCountForMessage"))
@@ -1224,6 +1295,10 @@ bool LKRun::Init()
         TString justName = fOutputFileName(fOutputFileName.Last('/')+1,fOutputFileName.Index(".root")-fOutputFileName.Last('/')-1);
         fLogFileName1 = TString(LILAK_PATH) + "/data/log/" + "init_" + ymd + "_" + hms + ".log";
         fLogFileName2 = TString(LILAK_PATH) + "/data/log/" + "init_" + justName + ".log";
+        if (fDryInit) { // nothing under data/: the caller reads this from the "Dry init log:" line and removes it
+            fLogFileName1 = Form("%s/init_dry_%d.log", gSystem->TempDirectory(), gSystem->GetPid());
+            fLogFileName2 = "";
+        }
         fRunHeader -> AddPar("init_log1",fLogFileName1);
         fRunHeader -> AddPar("init_log2",fLogFileName2);
     }
@@ -1235,21 +1310,37 @@ bool LKRun::Init()
     fRunHeader -> AddPar("Initialized",fInitialized);
 
     fRunHeader -> SaveAs(fLogFileName1);
-    unlink(fLogFileName2.Data());
-    symlink(fLogFileName1.Data(), fLogFileName2.Data());
+    if (fDryInit)
+        lk_info << "Dry init log: " << fLogFileName1 << endl;
+    else {
+        unlink(fLogFileName2.Data());
+        symlink(fLogFileName1.Data(), fLogFileName2.Data());
 
-    TString lastLogName = TString(LILAK_PATH) + "/data/lk_last_output.log";
-    unlink(lastLogName.Data());
-    symlink(fLogFileName1.Data(), lastLogName.Data());
+        TString lastLogName = TString(LILAK_PATH) + "/data/lk_last_output.log";
+        unlink(lastLogName.Data());
+        symlink(fLogFileName1.Data(), lastLogName.Data());
+    }
 
-    if (fInitialized && fAllowLILAKRun)
-    {
+    if (fInitialized && !fDryInit)
+        SendElogRunHook("I");
+
+    if (fInitialized) {
         lk_info << fNumEntries << " input entries" << endl;
         lk_info << "Initialized!" << endl;
+    }
+    else
+        lk_error << "Initialize failed!" << endl;
 
-        if (runAfterInit>=0 || exeAfterInit>=0)
+    if (fInitialized && fAllowLILAKRun && !fDryInit)
+    {
+        if (onlineAfterInit>=0 || runAfterInit>=0 || exeAfterInit>=0)
         {
-            if (runAfterInit>=0)
+            if (onlineAfterInit>=0)
+            {
+                if (onlineAfterInit==0) RunOnline();
+                else RunOnline(onlineAfterInit);
+            }
+            else if (runAfterInit>=0)
             {
                 if (runAfterInit==0) Run();
                 else Run(runAfterInit);
@@ -1265,8 +1356,6 @@ bool LKRun::Init()
             return true;
         }
     }
-    else
-        lk_error << "Initialize failed!" << endl;
 
     return fInitialized;
 }
@@ -1276,6 +1365,333 @@ void LKRun::InitAndCollectParameters(TString fileName)
     fPar -> SetCollectParameters(true);
     Init();
     fPar -> PrintCollection(fileName);
+}
+
+void LKRun::ConfigureElogHook()
+{
+    fPar -> UpdatePar(fElogEnabled,       "LKRun/ElogEnable");
+    fPar -> UpdatePar(fElogURL,           "LKRun/ElogURL");
+    fPar -> UpdatePar(fElogToken,         "LKRun/ElogToken");
+    fPar -> UpdatePar(fElogTimeout,       "LKRun/ElogTimeout");
+
+    if (fElogTimeout <= 0)
+        fElogTimeout = 5;
+
+    if (!fElogEnabled)
+        return;
+
+    const char *elogURLFromEnv = getenv("ELOG_URL");
+    if (elogURLFromEnv != nullptr && TString(elogURLFromEnv).IsNull() == false)
+        fElogURL = elogURLFromEnv;
+
+    const char *elogTokenFromEnv = getenv("ELOG_TOKEN");
+    if (elogTokenFromEnv != nullptr && TString(elogTokenFromEnv).IsNull() == false)
+        fElogToken = elogTokenFromEnv;
+
+    TString loadedConfigFile = "";
+    if (fElogURL.IsNull() || fElogToken.IsNull()) {
+        bool configLoaded = false;
+        const char *elogConfigFromEnv = getenv("ELOG_CONFIG_FILE");
+        if (elogConfigFromEnv != nullptr && TString(elogConfigFromEnv).IsNull() == false) {
+            configLoaded = LoadElogConfigFile(elogConfigFromEnv);
+            if (configLoaded)
+                loadedConfigFile = elogConfigFromEnv;
+        }
+        if (!configLoaded) {
+            configLoaded = LoadElogConfigFile("meta/elog_config.json");
+            if (configLoaded)
+                loadedConfigFile = "meta/elog_config.json";
+        }
+        if (!configLoaded) {
+            TString lilakConfigFile = TString(LILAK_PATH) + "/meta/elog_config.json";
+            configLoaded = LoadElogConfigFile(lilakConfigFile);
+            if (configLoaded)
+                loadedConfigFile = lilakConfigFile;
+        }
+        if (!configLoaded) {
+            configLoaded = LoadElogConfigFile("elog_config.json");
+            if (configLoaded)
+                loadedConfigFile = "elog_config.json";
+        }
+        if (configLoaded)
+            lk_info << "Loaded lilak_elog credentials from " << loadedConfigFile << endl;
+    }
+
+    if (fElogURL.IsNull()) {
+        lk_warning << "LKRun/ElogEnable is true, but ELOG_URL is not set and meta/elog_config.json was not found. Disable elog hook." << endl;
+        fElogEnabled = false;
+        return;
+    }
+
+    if (fElogToken.IsNull()) {
+        lk_warning << "LKRun/ElogEnable is true, but ELOG_TOKEN is not set and meta/elog_config.json was not found. Disable elog hook." << endl;
+        fElogEnabled = false;
+    }
+    else {
+        lk_info << "lilak_elog push hook enabled" << endl;
+    }
+}
+
+bool LKRun::LoadElogConfigFile(TString fileName)
+{
+    if (!LKRun::CheckFileExistence(fileName))
+        return false;
+
+    ifstream file(fileName.Data());
+    if (!file.good())
+        return false;
+
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    TString text = buffer.str();
+
+    if (fElogURL.IsNull())
+        fElogURL = ExtractElogJsonString(text, "elog_url");
+    if (fElogToken.IsNull())
+        fElogToken = ExtractElogJsonString(text, "elog_token");
+
+    return (!fElogURL.IsNull() && !fElogToken.IsNull());
+}
+
+TString LKRun::ExtractElogJsonString(TString text, TString key) const
+{
+    TString pattern = "\"" + key + "\"";
+    int keyIndex = text.Index(pattern);
+    if (keyIndex < 0)
+        return "";
+
+    int colonIndex = text.Index(":", keyIndex + pattern.Length());
+    if (colonIndex < 0)
+        return "";
+
+    int quoteIndex = text.Index("\"", colonIndex + 1);
+    if (quoteIndex < 0)
+        return "";
+
+    TString value;
+    bool escaped = false;
+    for (int i = quoteIndex + 1; i < text.Length(); ++i) {
+        char ch = text[i];
+        if (escaped) {
+            if      (ch == 'n') value += '\n';
+            else if (ch == 'r') value += '\r';
+            else if (ch == 't') value += '\t';
+            else                value += ch;
+            escaped = false;
+        }
+        else if (ch == '\\')
+            escaped = true;
+        else if (ch == '"')
+            break;
+        else
+            value += ch;
+    }
+
+    return value;
+}
+
+TString LKRun::EscapeElogJson(TString value) const
+{
+    TString escaped;
+    for (int i = 0; i < value.Length(); ++i) {
+        unsigned char ch = value[i];
+        if      (ch == '"')  escaped += "\\\"";
+        else if (ch == '\\') escaped += "\\\\";
+        else if (ch == '\b') escaped += "\\b";
+        else if (ch == '\f') escaped += "\\f";
+        else if (ch == '\n') escaped += "\\n";
+        else if (ch == '\r') escaped += "\\r";
+        else if (ch == '\t') escaped += "\\t";
+        else if (ch < 0x20)  escaped += Form("\\u%04x", ch);
+        else                 escaped += char(ch);
+    }
+    return escaped;
+}
+
+bool LKRun::SendElogRunHook(TString runType)
+{
+    if (!fElogEnabled)
+        return false;
+
+    bool isInit = (runType == "I");
+    Int_t logType = isInit ? 11 : 13;
+
+    TString action = isInit ? "initialized" : "ended";
+    TString title = Form("Run %d %s", fRunID, action.Data());
+    TString body = Form("LILAK run `%s` %s.\n\nOutput file: `%s`",
+            MakeFullRunName().Data(), action.Data(), fOutputFileName.Data());
+
+    if (!isInit && fRunHeader != nullptr && fRunHeader -> CheckPar("run_time")) {
+        body += Form("\nRun time: %s", fRunHeader -> GetParRaw("run_time").Data());
+    }
+    if (!isInit) {
+        auto numRunEntries = fEndEventID - fStartEventID + 1;
+        body += Form("\nNumber of entries: %lld", numRunEntries);
+    }
+
+    TString payload;
+    payload += "{";
+    payload += Form("\"title\":\"%s\",", EscapeElogJson(title).Data());
+    payload += Form("\"body\":\"%s\",", EscapeElogJson(body).Data());
+    payload += Form("\"log_type\":%d,", logType);
+    payload += Form("\"run_number\":%d,", fRunID);
+    payload += "\"is_auto\":true,";
+    payload += "\"format_fields\":{}";
+    payload += "}";
+
+    lk_info << "Pushing lilak_elog run log_type=" << logType << " for run " << fRunID << endl;
+    return PostElogLog(payload);
+}
+
+bool LKRun::PostElogLog(TString payload)
+{
+    TString url = fElogURL;
+    while (url.EndsWith("/"))
+        url = url(0, url.Length() - 1);
+    if (!url.EndsWith("/api/logs"))
+        url += "/api/logs";
+
+    if (!url.BeginsWith("http://")) {
+        lk_warning << "Only http:// lilak_elog URLs are supported: " << url << endl;
+        return false;
+    }
+
+    TString rest = url(7, url.Length() - 7);
+    TString hostPort = rest;
+    TString path = "/";
+    int slash = rest.Index("/");
+    if (slash >= 0) {
+        hostPort = rest(0, slash);
+        path = rest(slash, rest.Length() - slash);
+    }
+
+    TString host = hostPort;
+    TString port = "80";
+    int colon = hostPort.Last(':');
+    if (colon > 0) {
+        host = hostPort(0, colon);
+        port = hostPort(colon + 1, hostPort.Length() - colon - 1);
+    }
+
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    struct addrinfo *result = nullptr;
+    int gai = getaddrinfo(host.Data(), port.Data(), &hints, &result);
+    if (gai != 0) {
+        lk_warning << "Failed to resolve lilak_elog host " << host << ": " << gai_strerror(gai) << endl;
+        return false;
+    }
+
+    int sock = -1;
+    for (auto rp = result; rp != nullptr; rp = rp->ai_next) {
+        sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (sock < 0)
+            continue;
+
+        int flags = fcntl(sock, F_GETFL, 0);
+        fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+
+        int connected = connect(sock, rp->ai_addr, rp->ai_addrlen);
+        if (connected < 0 && errno == EINPROGRESS) {
+            fd_set wfds;
+            FD_ZERO(&wfds);
+            FD_SET(sock, &wfds);
+            struct timeval tv;
+            tv.tv_sec = fElogTimeout;
+            tv.tv_usec = 0;
+            connected = select(sock + 1, nullptr, &wfds, nullptr, &tv);
+            if (connected > 0) {
+                int error = 0;
+                socklen_t len = sizeof(error);
+                getsockopt(sock, SOL_SOCKET, SO_ERROR, &error, &len);
+                if (error != 0) {
+                    errno = error;
+                    connected = -1;
+                }
+                else {
+                    connected = 0;
+                }
+            }
+            else {
+                connected = -1;
+            }
+        }
+
+        fcntl(sock, F_SETFL, flags);
+        if (connected == 0)
+            break;
+
+        close(sock);
+        sock = -1;
+    }
+    freeaddrinfo(result);
+
+    if (sock < 0) {
+        lk_warning << "Failed to connect to lilak_elog at " << fElogURL << endl;
+        return false;
+    }
+
+    struct timeval tv;
+    tv.tv_sec = fElogTimeout;
+    tv.tv_usec = 0;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+    TString request;
+    request += Form("POST %s HTTP/1.1\r\n", path.Data());
+    request += Form("Host: %s\r\n", hostPort.Data());
+    request += Form("Authorization: Bearer %s\r\n", fElogToken.Data());
+    request += "Content-Type: application/json\r\n";
+    request += Form("Content-Length: %d\r\n", payload.Length());
+    request += "Connection: close\r\n\r\n";
+    request += payload;
+
+    const char *data = request.Data();
+    int remaining = request.Length();
+    while (remaining > 0) {
+        ssize_t sent = send(sock, data, remaining, 0);
+        if (sent <= 0) {
+            lk_warning << "Failed to send lilak_elog payload" << endl;
+            close(sock);
+            return false;
+        }
+        data += sent;
+        remaining -= sent;
+    }
+
+    TString response;
+    char buffer[1024];
+    ssize_t received = 0;
+    while ((received = recv(sock, buffer, sizeof(buffer) - 1, 0)) > 0) {
+        buffer[received] = 0;
+        response += buffer;
+    }
+    close(sock);
+
+    TString status = response;
+    int lineEnd = status.Index("\r\n");
+    if (lineEnd >= 0)
+        status = status(0, lineEnd);
+
+    TString body = "";
+    int bodyIndex = response.Index("\r\n\r\n");
+    if (bodyIndex >= 0)
+        body = response(bodyIndex + 4, response.Length() - bodyIndex - 4);
+
+    if (!response.BeginsWith("HTTP/1.1 2") && !response.BeginsWith("HTTP/1.0 2")) {
+        lk_warning << "lilak_elog push failed: " << status << endl;
+        if (!body.IsNull())
+            lk_warning << "lilak_elog response: " << body << endl;
+        return false;
+    }
+
+    lk_info << "Pushed run log to lilak_elog: " << status << endl;
+    if (!body.IsNull())
+        lk_info << "lilak_elog response: " << body << endl;
+    return true;
 }
 
 /*
@@ -1507,6 +1923,20 @@ bool LKRun::WriteOutputFile()
         fUserDrawingArray -> Write("drawings",TObject::kSingleKey);
     if (fTopDrawingGroup!=nullptr)
         fTopDrawingGroup -> Write();
+    if (fSaveX && fTopDrawingGroup!=nullptr) {
+        auto hitPatternDirectory = fOutputFile->GetDirectory("canvas_hitpattern");
+        if (hitPatternDirectory == nullptr)
+            hitPatternDirectory = fOutputFile->mkdir("canvas_hitpattern");
+        auto otherDirectory = fOutputFile->GetDirectory("canvas_others");
+        if (otherDirectory == nullptr)
+            otherDirectory = fOutputFile->mkdir("canvas_others");
+        int numHitPatternCanvases = 0;
+        const auto numCanvases = WriteDrawingCanvases(fTopDrawingGroup,hitPatternDirectory,
+                                                       otherDirectory,numHitPatternCanvases);
+        fOutputFile->cd();
+        lk_info << "Saved " << numHitPatternCanvases << " canvases in canvas_hitpattern/ and "
+                << numCanvases-numHitPatternCanvases << " canvases in canvas_others/" << endl;
+    }
     if (fAutoTerminate)
         fOutputFile -> Close();
 
@@ -1652,6 +2082,7 @@ bool LKRun::ExecuteEvent(Long64_t eventID)
     }
     else if (eventID==-3) {
         fCurrentEventID = fCurrentEventID + 1;
+        fEndEventID = fCurrentEventID;
         if (fNumEntries<0)
             numEntriesMatter = false;
     }
@@ -1866,14 +2297,20 @@ bool LKRun::EndOfRun()
 
     Print("gen:out:in");
 
+    if (fSaveX && fTopDrawingGroup!=nullptr && fTopDrawingGroup->GetEntries()>0) {
+        lk_info << "Drawing all groups in batch mode for lilak/savex" << endl;
+        Draw();
+    }
+
     WriteOutputFile();
 
     fRunHasStarted = false;
     fCleanExit = true;
 
     ProcessWriteExitLog();
+    SendElogRunHook("E");
 
-    if (fDrawAfterRun) {
+    if (fDrawAfterRun && !fSaveX) {
         SetAutoTermination(false);
         Draw(fDrawOption);
     }
@@ -1999,6 +2436,11 @@ vector<TString> LKRun::SearchRunFiles(int searchRunNo, TString searchTag, TStrin
             ///////////////////////////////////////////////////////////////////////////////////////////////////////////
             if (searchTag=="mfm")
             {
+                // Sidecar files generated for MFM navigation begin with the
+                // same run name, but they are metadata rather than raw input.
+                if (fileName.Contains(".mfm_event_index")
+                        || fileName.Contains(".mfm_event_ranges.json"))
+                    continue;
                 //if (sysFile->IsDirectory()==false && fileName.Index("run_")==0 && fileName.Sizeof()>=32)
                 if (sysFile->IsDirectory()==false && fileName.Index("run_")==0)
                 {
@@ -2140,7 +2582,7 @@ void LKRun::PrintDrawings()
 LKDrawingGroup* LKRun::GetTopDrawingGroup()
 {
     if (fTopDrawingGroup==nullptr)
-        fTopDrawingGroup = new LKDrawingGroup(MakeFullRunName(true));
+        fTopDrawingGroup = new LKDrawingGroup("top");
 
     return fTopDrawingGroup;
 }
@@ -2148,15 +2590,38 @@ LKDrawingGroup* LKRun::GetTopDrawingGroup()
 void LKRun::Draw(Option_t* option)
 {
     fDrawOption = option;
-    if (fTopDrawingGroup->GetEntries()==0) {
+    auto topDrawingGroup = GetTopDrawingGroup();
+    if (topDrawingGroup->GetEntries()==0) {
         lk_warning << "Not using drawings..." << endl;
+        return;
+    }
+    if (gROOT->IsBatch()) {
+        topDrawingGroup->Draw(option);
         return;
     }
     if (fDataViewer!=nullptr && fDataViewer->IsActive()) {
         lk_warning << "Viewer already running" << endl;
         return;
     }
-    fDataViewer = fTopDrawingGroup -> CreateViewer();
+    fDataViewer = topDrawingGroup -> CreateViewer();
     fDataViewer -> SetRun(this);
-    fTopDrawingGroup -> Draw(TString(fDrawOption));
+    topDrawingGroup -> Draw(TString(fDrawOption));
+}
+
+void LKRun::StopCurrentEvent()
+{
+    fStopCurrentEvent = true;
+    // TTask checks this before every child, including nested task lists.
+    fgBreakPoint = this;
+}
+
+void LKRun::ExecuteTask(Option_t *option)
+{
+    fStopCurrentEvent = false;
+    TTask::ExecuteTask(option);
+    if (fStopCurrentEvent) {
+        // Abort only after the Exec/ExecuteTasks stack has unwound.
+        TTask::Abort();
+        fStopCurrentEvent = false;
+    }
 }

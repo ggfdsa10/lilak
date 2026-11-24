@@ -19,6 +19,7 @@ using namespace std;
 #include "TClonesArray.h"
 #include "TMultiGraph.h"
 #include "TH2D.h"
+#include "TF1.h"
 
 #include "LKLogger.h"
 #include "LKPulse.h"
@@ -26,6 +27,8 @@ using namespace std;
 #include "LKPadInteractive.h"
 #include "LKPadInteractiveManager.h"
 #include "LKDrawing.h"
+
+class LKParameterContainer;
 
 //#define NUMBER_OF_PEDESTAL_TEST_REGIONS 6
 //#define NUMBER_OF_PEDESTAL_TEST_REGIONS 7
@@ -94,8 +97,8 @@ class LKTbIterationParameters
  * Analyze() method is combination of FindPeak(), FitPulse(), TestPulse(), FitAmplitude()
  * which are, in principle, can be used independently as well. Read method descriptions for detail.
  *
- * LKChannelAnalyzer should be initialized with pulse data file created from LKPulseAnalyzer.
- * See LKPulseAnalyzer for pulse data file.
+ * LKChannelAnalyzer should be initialized with pulse data file created from LKPulseExtractor.
+ * See LKPulseExtractor for pulse data file.
  * Some parameters are set from pulse data file. Look for keyword "Automatically set".
  * Some parameters must be set by user. Look for keyword "Must be set".
  *
@@ -124,7 +127,7 @@ class LKTbIterationParameters
  * @code{.cpp}
  *  {
  *      auto ana = LKChannelAnalyzer()
- *      ana -> SetPulse("pulse_data_created_from_LKPulseAnalyzer.root");
+ *      ana -> SetPulse("pulse_data_created_from_LKPulseExtractor.root");
  *      ana -> SetTbMax(512);
  *      ana -> SetTbStart(0);
  *      ana -> SetDynamicRange(4096);
@@ -161,12 +164,19 @@ class LKChannelAnalyzer : public LKPadInteractive
         void Draw(Option_t *option="");
         LKDrawing* GetDrawing();
 
-        /// Set pulse function and related parameter from pulse data file created from LKPulseAnalyzer
+        /// Set pulse function and related parameter from pulse data file created from LKPulseExtractor
         void SetSigAtMaximum() { fAnalyzerMode = kSigAtMaximumMode; }
         void SetSigAtThreshold() { fAnalyzerMode = kSigAtThresholdMode; }
         void SetPulse(const char* fileName);
+        void SetPulse(LKParameterContainer* par, TString groupName="LKPulse");
         LKPulse* GetPulse() const  { return fPulse; }
         TString GetPulseFileName() const { return fPulseFileName; }
+        void SetUsePulseFunction(bool value=true);
+        void SetPulseFunctionParameters(double baseline, double peak, double t0, double alpha, double tau);
+        void SetPulseFunctionRange(double tbMin, double tbMax);
+        void FixPulseFunctionAlpha(bool value=true);
+        void FixPulseFunctionTau(bool value=true);
+        TF1* GetPulseFunction(TString name="pulse_function", bool subtractBaseline=true);
 
         double Eval  (double tb, double tb0=0, double amplitude=1) { return fPulse -> Eval  (tb, tb0, amplitude); }
         double Error (double tb, double tb0=0, double amplitude=1) { return fPulse -> Error (tb, tb0, amplitude); }
@@ -234,10 +244,19 @@ class LKChannelAnalyzer : public LKPadInteractive
 
         int GetTbMax() const  { return fTbMax; }
         int GetTbStart() const  { return fTbStart; }
-        int GetTbStartCut() const  { return fTbStartCut; }
+        int GetTbEnd() const  { return fTbEnd; }
+        int GetTbStartCut() const  { return GetTbEnd(); } ///< Backward-compatible alias for GetTbEnd().
         int GetThreshold() const  { return fThreshold; }
         int GetThresholdOneTbStep() const  { return fThresholdOneStep; }
         int GetNumTbAcendingCut() const  { return fNumTbAcendingCut; }
+        /// Inclusive pedestal interval; (-1,-1) restores automatic selection.
+        void SetPedestalTbRange(int first, int last);
+        double GetNoiseScale() const { return fNoiseScale; }
+        /// Opposite lobe / positive peak ratio, after polarity normalization.
+        void SetBipolarPercentRange(double minimum, double maximum);
+        void SetBipolarWindow(int window);
+        bool IsBipolar() const;
+        bool IsBipolar(double minRatio, double maxRatio, int window) const;
         double GetPedestal() const  { return fPedestal; }
         int GetDynamicRange() const  { return fDynamicRange; }
         int GetNDF() const  { return fNDFFit; }
@@ -249,7 +268,8 @@ class LKChannelAnalyzer : public LKPadInteractive
         void SetTbRange(int tbStart, int tbMax) { fTbStart = tbStart; fTbMax = tbMax; }
         void SetTbMax(int tbMax) { fTbMax = tbMax; }
         void SetTbStart(int tbStart) { fTbStart = tbStart; }
-        void SetTbStartCut(int tbStartCut) { fTbStartCut = tbStartCut; }
+        void SetTbEnd(int tbEnd) { fTbEnd = tbEnd; }
+        void SetTbStartCut(int tbStartCut) { SetTbEnd(tbStartCut); } ///< Backward-compatible alias for SetTbEnd().
         void SetThreshold(int threshold) { fThreshold = threshold; }
         void SetThresholdOneStep(int oneStepThreshold) { fThresholdOneStep = oneStepThreshold; }
         void SetNumTbAcendingCut(int numAcendingCut) { fNumTbAcendingCut = numAcendingCut; }
@@ -259,6 +279,7 @@ class LKChannelAnalyzer : public LKPadInteractive
         void SetScaleTbStep(double scaleTbStep) { fScaleTbStep = scaleTbStep; }
         void SetTbStepCut(double value) { fTbStepCut = value; }
         void SetDataIsInverted(bool value=true) { fDataIsInverted = value; }
+        void SetUseRootPulseFit(bool value=true) { fUseRootPulseFit = value; }
 
         double* GetBuffer() { return fBuffer; }
 
@@ -308,14 +329,20 @@ class LKChannelAnalyzer : public LKPadInteractive
         bool         fUsedSample[20];
         double       fPedestalSample[20] = {0.};
         double       fStddevSample[20] = {0.};
+        double       fBipolarMinPercent = 50;
+        double       fBipolarMaxPercent = 150;
+        int          fBipolarWindow = 30;
+        int          fPedestalTbFirst = -1;
+        int          fPedestalTbLast = -1;
         double       fPedestal = 0; ///< pedestal level of current channel
+        double       fNoiseScale = 0; ///< RMS noise of the pedestal-subtracted buffer in the configured pedestal TB range.
         double       fPedestalErrorRefSampleCut = 10;
         const double fCVCut = 0.2; ///< stdDev/mean cut for collecting samples used for calculating pedestal.
 
         // tb
         int          fTbMax = 512; ///< Maximum TB in buffer. Must be set with SetTbMax()
         int          fTbStart = 1; ///< Starting TB-position for analysis. Must be set with SetTbStart()
-        int          fTbStartCut = -1; ///< Pulse TB-position cannot be larger than fTbStartCut. Automatically set from pulse: fTbStartCut = fTbMax - fNDFFit. Can be set with SetTbStartCut()
+        int          fTbEnd = -1; ///< Exclusive end of the TB analysis range. Automatically set from pulse to fTbMax - fNDFFit. Can be set with SetTbEnd().
         int          fNumTbAcendingCut = 5; ///< Peak will be recognize if number-of-TBs-acending >= fNumTbAcendingCut. Automatically set from pulse: fNumTbAcendingCut = int(fWidthLeading*2/3).Can be set with SetNumTbAcendingCut()
 
         // y
@@ -335,6 +362,7 @@ class LKChannelAnalyzer : public LKPadInteractive
         int          fIterMax = 15; ///< [Pulse-fitting] Maximum iteration cut. Must be set with SetIterMax()
         double       fTbStepCut = 0.01; ///< [Pulse-fitting] Break from loop if fit-TB-step < fTbStepCut. Related to fitting speed and resolution. Can be set with SetTbStepCut().
         double       fScaleTbStep = 0.5; ///< [Pulse-fitting] (~0.2) Scale factor for choosing fit-TB-step for next TB candidate. Related to fitting speed and iteration #. Must be set with SetScaleTbStep()
+        bool         fUseRootPulseFit = false; ///< [Pulse-fitting] Use TH1::Fit with LKPulse TF1 before falling back to manual chi2 iteration.
 
         double       fFWHM; ///< [Pulse] Full Width Half Maximum of reference pulse. Automatically set from pulse.
         double       fFloorRatio; ///< [Pulse] Ratio regard to the full pulse height where pulse width was measured. Automatically set from pulse.
@@ -377,7 +405,9 @@ class LKChannelAnalyzer : public LKPadInteractive
         TH1D* fHistBufferIntegral = nullptr;
         vector<int> fIntegralTbArray;
 
-    ClassDef(LKChannelAnalyzer,1);
+        void ConfigureFromPulse();
+
+    ClassDef(LKChannelAnalyzer,3);
 };
 
 #endif

@@ -1,7 +1,10 @@
 #include "LKPulseShapeAnalysisTask.h"
 //#include "LKEventHeader.h"
 #include "GETChannel.h"
+#include "LKPad.h"
 #include "LKHit.h"
+#include "LKChannelAnalyzer.h"
+#include "TSystem.h"
 
 ClassImp(LKPulseShapeAnalysisTask);
 
@@ -13,6 +16,14 @@ LKPulseShapeAnalysisTask::LKPulseShapeAnalysisTask()
 bool LKPulseShapeAnalysisTask::Init()
 {
     lk_info << "Initializing LKPulseShapeAnalysisTask" << std::endl;
+
+    fPar -> UpdatePar(fPulseParameterFile, "LKPulseShapeAnalysisTask/pulseParameterFile # LKPulse parameter file. Leave empty to use $LILAK_PATH/common/pulseReference.mac.");
+    fPar -> UpdatePar(fFixPulseFunctionAlpha, "LKPulseShapeAnalysisTask/fixPulseFunctionAlpha false # Fix LKPulse function alpha during pulse fitting.");
+    fPar -> UpdatePar(fFixPulseFunctionTau, "LKPulseShapeAnalysisTask/fixPulseFunctionTau false # Fix LKPulse function tau during pulse fitting.");
+    fPar -> UpdatePar(fUseRootPulseFit, "LKPulseShapeAnalysisTask/useRootPulseFit true # Use TH1::Fit with LKPulse TF1; fallback to manual chi2 if it fails.");
+    fPar -> UpdatePar(fInputBranchName, "LKPulseShapeAnalysisTask/inputBranchName RawData # Input channel branch name. Use PadData for simulated LKPad digi output.");
+    fPar -> UpdatePar(fUseShapedBuffer, "LKPulseShapeAnalysisTask/useShapedBuffer false # If true and input branch stores LKPad, analyze LKPad::BufferShaped instead of GETChannel raw waveform.");
+    fPar -> UpdatePar(fAnalysisMode, "LKPulseShapeAnalysisTask/analysisMode fit # Pulse analysis mode: fit uses pulse-shape fitting; maximum uses the highest sample; threshold uses threshold crossing.");
 
     if (fChannelAnalyzer==nullptr)
     {
@@ -28,12 +39,31 @@ bool LKPulseShapeAnalysisTask::Init()
         }
     }
 
-    fChannelAnalyzer -> Print();
+    if (fChannelAnalyzer==nullptr)
+        fChannelAnalyzer = new LKChannelAnalyzer();
 
     if (fDetectorPlane!=nullptr)
         fUsingDetectorPlane = true;
 
-    fChannelArray = fRun -> GetBranchA("RawData","GETChannel");
+    if (fPulseParameterFile.IsNull())
+        fPulseParameterFile = TString(gSystem -> Getenv("LILAK_PATH")) + "/common/pulseReference.mac";
+    fChannelAnalyzer -> SetPulse(fPulseParameterFile);
+    fChannelAnalyzer -> FixPulseFunctionAlpha(fFixPulseFunctionAlpha);
+    fChannelAnalyzer -> FixPulseFunctionTau(fFixPulseFunctionTau);
+    fChannelAnalyzer -> SetUseRootPulseFit(fUseRootPulseFit);
+    fAnalysisMode.ToLower();
+    if (fAnalysisMode == "maximum" || fAnalysisMode == "max")
+        fChannelAnalyzer -> SetSigAtMaximum();
+    else if (fAnalysisMode == "threshold" || fAnalysisMode == "thr")
+        fChannelAnalyzer -> SetSigAtThreshold();
+
+    fChannelAnalyzer -> Print();
+
+    fChannelArray = fRun -> GetBranchA(fInputBranchName);
+    if (fChannelArray == nullptr) {
+        lk_error << "Input branch " << fInputBranchName << " does not exist!" << endl;
+        return false;
+    }
     fHitArray = fRun -> RegisterBranchA("Hit","LKHit",100);
 
     return true;
@@ -59,6 +89,8 @@ void LKPulseShapeAnalysisTask::Exec(Option_t *option)
         auto aget = channel -> GetAget();
         auto chan = channel -> GetChan();
         auto data = channel -> GetWaveformY();
+        if (fUseShapedBuffer && channel -> InheritsFrom(LKPad::Class()))
+            data = static_cast<LKPad*>(channel) -> GetArrayShaped();
         if (fUsingDetectorPlane&&padID<0)
             padID = fDetectorPlane -> FindPadID(cobo,asad,aget,chan);
 

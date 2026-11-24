@@ -712,11 +712,25 @@ void LKParameterContainer::ReplaceEnvVariables(TString &valInput)
 
         if (type==0)
         {
-            TString replaceFrom = TString(valInput(isp+2,fsp-isp-2));
-            TString replaceFrom2 = replaceFrom;
-            replaceFrom2.ToLower();
+            TString environmentExpression = TString(valInput(isp+2,fsp-isp-2));
+            TString environmentName = environmentExpression;
+            TString defaultValue;
+            const int defaultSeparator = environmentExpression.Index(":-");
+            const bool hasDefaultValue = defaultSeparator >= 0;
+            if (hasDefaultValue) {
+                environmentName = environmentExpression(0, defaultSeparator);
+                defaultValue = environmentExpression(
+                    defaultSeparator + 2,
+                    environmentExpression.Length() - defaultSeparator - 2
+                );
+            }
+
             TString replaceTo;
-            replaceTo = getenv(replaceFrom);
+            const char *environmentValue = getenv(environmentName.Data());
+            if (environmentValue != nullptr && (!hasDefaultValue || environmentValue[0] != '\0'))
+                replaceTo = environmentValue;
+            else if (hasDefaultValue)
+                replaceTo = defaultValue;
             valInput.Replace(isp,fsp-isp+1,replaceTo);
         }
         else if (type==1)
@@ -1368,6 +1382,10 @@ Int_t LKParameterContainer::AddLine(std::string ssline)
         ssline.erase(endpos+1);
     }
 
+    // a tab in the indentation counts as 4 spaces
+    for (size_t i=0; i<ssline.size() && (ssline[i]==' ' || ssline[i]=='\t'); ++i)
+        if (ssline[i]=='\t') ssline.replace(i, 1, "    ");
+
     if (ssline.find("#") == 0) {
         TString line2 = TString(ssline);
         line2 = line2(1,line2.Sizeof()-2);
@@ -1477,7 +1495,7 @@ Int_t LKParameterContainer::AddLine(std::string ssline)
     // value -------------------------------------------
     parValues = ssline;
     parValues.Remove(0,sizeOfHead);
-    while (parValues[0]==' ')
+    while (parValues[0]==' ' || parValues[0]=='\t')
         parValues.Remove(0,1);
 
     // comment -------------------------------------------
@@ -1485,13 +1503,13 @@ Int_t LKParameterContainer::AddLine(std::string ssline)
     TString parComment;
     if (icomment>=0) {
         parComment = parValues(icomment+1,parValues.Sizeof()-1);
-        while (parComment[0]==' ')
+        while (parComment[0]==' ' || parComment[0]=='\t')
             parComment.Remove(0,1);
         // split parValues
         parValues = parValues(0,icomment);
-        while (parValues[0]==' ')
+        while (parValues[0]==' ' || parValues[0]=='\t')
             parValues.Remove(0,1);
-        while (parValues[parValues.Sizeof()-2]==' ')
+        while (parValues[parValues.Sizeof()-2]==' ' || parValues[parValues.Sizeof()-2]=='\t')
             parValues.Remove(parValues.Sizeof()-2,1);
     }
 
@@ -1505,6 +1523,207 @@ Int_t LKParameterContainer::AddLine(std::string ssline)
 
 Bool_t LKParameterContainer::AddPar(TString name, TString value, TString comment)
 {
+    if (name.Contains("?"))
+    {
+        std::vector<TString> pathParts;
+        int begin = 0, braces = 0;
+        bool quoted = false, escaped = false;
+        // Only slashes outside references/lists and string literals separate the path.
+        for (int i=0; i<name.Length(); ++i) {
+            const char c = name[i];
+            if (quoted) {
+                if (escaped) escaped = false;
+                else if (c=='\\') escaped = true;
+                else if (c=='"') quoted = false;
+                continue;
+            }
+            if (c=='"') { quoted = true; continue; }
+            if (c=='{') ++braces;
+            else if (c=='}') --braces;
+            if (braces<0) break;
+            if (c=='/' && braces==0) {
+                if (i>begin) pathParts.push_back(name(begin, i-begin));
+                begin = i+1;
+            }
+        }
+        if (braces!=0 || quoted) {
+            lk_info << "Skip add par: unbalanced braces or quotes in " << name << endl;
+            return false;
+        }
+        if (begin<name.Length()) pathParts.push_back(name(begin, name.Length()-begin));
+        TString finalName;
+        for (auto tokName : pathParts)
+        {
+            if (!tokName.BeginsWith("?")) {
+                if (finalName.IsNull()) finalName = tokName;
+                else finalName = finalName + "/" + tokName;
+                continue;
+            }
+            TString formula;
+            bool goodToAdd = false;
+            tokName.Remove(0, 1);
+            if (tokName.BeginsWith("!") && !tokName.BeginsWith("!=")) {
+                // ?!name : true when name is missing or empty (same test as @-name/).
+                TString target = tokName(1, tokName.Length()-1);
+                if (target.BeginsWith("{") && target.EndsWith("}"))
+                    target = target(1, target.Length()-2);
+                if (target.IsNull() || (CheckPar(target) && !GetParString(target).IsNull())) {
+                    lk_info << "Skip add par: ?!" << target << " is false." << endl;
+                    return false;
+                }
+                continue;
+            }
+            // Operators and list separators inside quoted strings are literal text.
+            auto splitCondition = [](const TString &text, bool list,
+                                     std::vector<TString> &parts, std::vector<TString> &ops) {
+                int begin = 0, parentheses = 0, braces = 0;
+                bool quoted = false, escaped = false;
+                for (int i=0; i<text.Length(); ++i) {
+                    const char c = text[i];
+                    if (quoted) {
+                        if (escaped) escaped = false;
+                        else if (c=='\\') escaped = true;
+                        else if (c=='"') quoted = false;
+                        continue;
+                    }
+                    if (c=='"') { quoted = true; continue; }
+                    if (c=='{') ++braces;
+                    else if (c=='}') --braces;
+                    else if (braces==0 && c=='(') ++parentheses;
+                    else if (braces==0 && c==')') --parentheses;
+                    if (braces<0 || parentheses<0) return false;
+                    if (braces!=0 || parentheses!=0) continue;
+                    int size = 1;
+                    if (list) {
+                        if (c!=',') continue;
+                    }
+                    else {
+                        if (c!='<' && c!='>' && c!='=' && c!='!' && c!=':') continue;
+                        if (c!=':' && i+1<text.Length() && text[i+1]=='=') size = 2;
+                        else if (c=='=' || c=='!') return false;
+                    }
+                    if (i==begin) return false;
+                    parts.push_back(text(begin, i-begin));
+                    ops.push_back(text(i, size));
+                    i += size-1;
+                    begin = i+1;
+                }
+                if (quoted || braces!=0 || parentheses!=0 || begin==text.Length()) return false;
+                parts.push_back(text(begin, text.Length()-begin));
+                return true;
+            };
+            struct ConditionValue {
+                TString text;
+                bool isString = false;
+            };
+            auto resolve = [&](TString operand, bool existence, ConditionValue &result) {
+                operand = operand.Strip(TString::kBoth);
+                if (operand.IsNull()) return false;
+                if (operand.BeginsWith("\"")) {
+                    if (operand.Length()<2 || !operand.EndsWith("\"")) return false;
+                    result.isString = true;
+                    for (int i=1; i<operand.Length()-1; ++i) {
+                        if (operand[i]=='\\') {
+                            if (++i>=operand.Length()-1) return false;
+                            if (operand[i]!='\\' && operand[i]!='"') return false;
+                        }
+                        else if (operand[i]=='"') return false;
+                        result.text += operand[i];
+                    }
+                    return true;
+                }
+                TString lower = operand;
+                lower.ToLower();
+                const bool boolean = lower=="true" || lower=="false";
+                const bool reference = operand.BeginsWith("{") && operand.EndsWith("}");
+                const bool bareName = !existence && !boolean &&
+                    (CheckPar(operand) ||
+                     ((std::isalpha(static_cast<unsigned char>(operand[0])) || operand[0]=='_') &&
+                      std::all_of(operand.Data(), operand.Data()+operand.Length(), [](unsigned char c) {
+                          return std::isalnum(c) || c=='_';
+                      })));
+                if (reference || bareName) {
+                    if (reference) operand = operand(1, operand.Length()-2);
+                    if (!CheckPar(operand)) return false;
+                    operand = existence ? TString("1") : GetParString(operand);
+                    lower = operand;
+                    lower.ToLower();
+                    result.isString = lower!="true" && lower!="false" &&
+                        !operand.IsFloat() && !CheckFormulaValidity(operand);
+                }
+                result.text = operand;
+                return true;
+            };
+            auto compare = [&](const ConditionValue &left, const TString &op,
+                               const ConditionValue &right, bool &valid) {
+                if (left.isString || right.isString) {
+                    if (op=="==") return left.text==right.text;
+                    if (op=="!=") return left.text!=right.text;
+                    valid = false; // String ordering is intentionally unsupported.
+                    return false;
+                }
+                auto numeric = [](TString value) {
+                    TString lower = value;
+                    lower.ToLower();
+                    if (lower=="true") return TString("1");
+                    if (lower=="false") return TString("0");
+                    return value;
+                };
+                formula = Form("((%s)%s(%s))", numeric(left.text).Data(), op.Data(), numeric(right.text).Data());
+                TFormula condition("goodToAdd", formula);
+                if (!condition.IsValid()) { valid = false; return false; }
+                return bool(condition.Eval(0));
+            };
+
+            std::vector<TString> operands, comparisons;
+            bool valid = splitCondition(tokName, false, operands, comparisons);
+            if (valid && comparisons.size()==1 && comparisons[0]==":") {
+                const TString list = operands[1];
+                valid = list.BeginsWith("{") && list.EndsWith("}");
+                std::vector<TString> items, separators;
+                if (valid && list.Length()>2)
+                    valid = splitCondition(list(1, list.Length()-2), true, items, separators);
+                ConditionValue left;
+                valid = valid && resolve(operands[0], false, left);
+                for (const auto &item : items) {
+                    ConditionValue right;
+                    if (!valid || !resolve(item, false, right)) { valid = false; break; }
+                    const bool match = compare(left, "==", right, valid);
+                    goodToAdd = goodToAdd || match;
+                }
+            }
+            else if (valid) {
+                std::vector<ConditionValue> values;
+                for (const auto &operand : operands) {
+                    ConditionValue value;
+                    if (!resolve(operand, comparisons.empty(), value)) { valid = false; break; }
+                    values.push_back(value);
+                }
+                if (valid && comparisons.empty()) {
+                    ConditionValue zero;
+                    zero.text = "0";
+                    goodToAdd = !values.front().isString && compare(values.front(), "!=", zero, valid);
+                }
+                else if (valid) {
+                    goodToAdd = true;
+                    // a < b <= c means (a < b) && (b <= c).
+                    for (size_t i=0; i<comparisons.size(); ++i) {
+                        if (comparisons[i]==":") { valid = false; break; }
+                        const bool match = compare(values[i], comparisons[i], values[i+1], valid);
+                        goodToAdd = goodToAdd && match;
+                        if (!valid) break;
+                    }
+                }
+            }
+            goodToAdd = valid && goodToAdd;
+            if (goodToAdd==false) {
+                lk_info << "Skip add par: " << tokName << " is false. (" << formula << ")" << endl;
+                return false;
+            }
+        }
+        name = finalName;
+    }
+
     LKParameter *parameterPrev = FindParFree(name);
     if (parameterPrev != nullptr) {
         if (fThisIsNewCollection)
@@ -1512,91 +1731,6 @@ Bool_t LKParameterContainer::AddPar(TString name, TString value, TString comment
         parameterPrev -> SetIsLegacy();
         parameterPrev -> SetIsMultiple();
         lk_warning << "Parameter " << name << " already exist! Overwritting ... to " << name << " " << value << endl;
-    }
-
-    if (name.Index("?")>=0)
-    {
-        auto lfTokNames = name.Tokenize("/");
-        auto numTok = lfTokNames -> GetEntries();
-        TString finalName;
-        for (auto iTok=0; iTok<numTok; ++iTok)
-        {
-            TString tokName = ((TObjString *) lfTokNames->At(iTok)) -> GetString();
-            if (tokName[0]!='?') {
-                if (finalName.IsNull()) finalName = tokName;
-                else finalName = finalName + "/" + tokName;
-                continue;
-            }
-            TString formula;
-            bool goodToAdd = false;
-            while (true) {
-                tokName = tokName(1, tokName.Sizeof()-2);
-                int coType = 0;
-                int coSize = 0;
-                int coIndex = 0;
-
-                if      (tokName.Index("<" )>0) { coType = 1; coIndex = tokName.Index("<" ); coSize = 1; }
-                else if (tokName.Index(">" )>0) { coType = 2; coIndex = tokName.Index(">" ); coSize = 1; }
-                else if (tokName.Index("<=")>0) { coType = 3; coIndex = tokName.Index("<="); coSize = 2; }
-                else if (tokName.Index(">=")>0) { coType = 4; coIndex = tokName.Index(">="); coSize = 2; }
-                else if (tokName.Index("==")>0) { coType = 5; coIndex = tokName.Index("=="); coSize = 2; }
-                else if (tokName.Index("!=")>0) { coType = 6; coIndex = tokName.Index("!="); coSize = 2; }
-                else                            { coType = 0; coIndex = tokName.Sizeof(); }
-
-                bool lGood = true;
-                bool lExist = false;
-                TString lName = tokName(0,coIndex);
-                TString lValue;
-
-                bool rGood = true;
-                bool rExist = false;
-                TString rName = tokName(coIndex+coSize,tokName.Sizeof());
-                TString rValue;
-
-                if (lName.Index("{")==0&&lName.EndsWith("}")) {
-                    lName = lName(1, lName.Sizeof()-3);
-                    lExist = CheckPar(lName);
-                    if (lExist) lValue = GetParString(lName);
-                    else lGood = false;
-                }
-                else
-                    lValue = lName;
-
-                if (coType==0 && lExist)
-                    lValue = "1";
-                else {
-                    if (rName.Index("{")==0&&rName.EndsWith("}")) {
-                        rName = rName(1, rName.Sizeof()-3);
-                        rExist = CheckPar(rName);
-                        if (rExist) rValue = GetParString(rName);
-                        else rGood = false;
-                    }
-                    else
-                        rValue = rName;
-                }
-
-                if (lGood==false||rGood==false) {
-                    goodToAdd = false;
-                    break;
-                }
-
-                if      (coType==0) formula = Form("%s"    ,lValue.Data()              );
-                else if (coType==1) formula = Form("%s<%s ",lValue.Data(),rValue.Data());
-                else if (coType==2) formula = Form("%s>%s ",lValue.Data(),rValue.Data());
-                else if (coType==3) formula = Form("%s<=%s",lValue.Data(),rValue.Data());
-                else if (coType==4) formula = Form("%s>=%s",lValue.Data(),rValue.Data());
-                else if (coType==5) formula = Form("%s==%s",lValue.Data(),rValue.Data());
-                else if (coType==6) formula = Form("%s!=%s",lValue.Data(),rValue.Data());
-
-                goodToAdd = bool(TFormula("goodToAdd",formula).Eval(0));
-                break;
-            }
-            if (goodToAdd==false) {
-                lk_info << "Skip add par: " << tokName << " is false. (" << formula << ")" << endl;
-                return false;
-            }
-        }
-        name = finalName;
     }
 
     if (name.IsNull()&&value.IsNull()&&!comment.IsNull()) {
@@ -1855,17 +1989,33 @@ LKParameterContainer* LKParameterContainer::CreateAnyContainer(TString any)
 
 void LKParameterContainer::Require(TString name, TString value, TString comment, TString type, int compare)
 {
-    if (fParameterCollectionMode && fCollectedParameterContainer->FindPar(name)==nullptr)
+    // Look up without recording it, so the collection below gets the user's own value when it is set.
+    bool collecting = fParameterCollectionMode;
+    fParameterCollectionMode = false;
+    auto par = FindParFree(name,false);
+    fParameterCollectionMode = collecting;
+
+    TString typeUserSet = type;
+    typeUserSet.ReplaceAll("/",""); // a value the user set is never written commented out
+
+    if (collecting && fCollectedParameterContainer->FindPar(name)==nullptr)
     {
-        auto parc = fCollectedParameterContainer -> SetPar(name, value, value, comment);
-        if (!type.IsNull()) parc -> SetType(type);
+        LKParameter *parc = nullptr;
+        if (par!=nullptr) {
+            TString userComment = par -> GetComment();
+            parc = fCollectedParameterContainer -> SetPar(name, par->GetRaw(), par->GetValue(), userComment.IsNull()?comment:userComment);
+            if (!typeUserSet.IsNull()) parc -> SetType(typeUserSet);
+        }
+        else { // not set by the user: write the default commented out so the next run behaves the same
+            parc = fCollectedParameterContainer -> SetPar(name, value, value, comment);
+            if (!type.IsNull()) parc -> SetType(type);
+            parc -> SetIsCommentOut();
+        }
         if (compare>=0) parc -> SetCompare(compare);
     }
 
-    auto par = FindParFree(name,false);
     if (par!=nullptr) {
-        type.ReplaceAll("/","");
-        if (!type.IsNull()) par -> SetType(type);
+        if (!typeUserSet.IsNull()) par -> SetType(typeUserSet);
         if (compare>=0) par -> SetCompare(compare);
     }
 }
@@ -1962,6 +2112,11 @@ LKParameter *LKParameterContainer::FindParFree(TString givenName, bool terminate
         if (parameterIsFound) line = Form("%s",parameterFound->GetLine().Data());
         else                  line = Form("%s",givenName.Data());
         fCollectedParameterContainer -> AddLine(line);
+        if (!parameterIsFound) {
+            // Not set by the user: write the suggestion commented out so the next run behaves the same.
+            auto suggested = fCollectedParameterContainer -> FindPar(givenName);
+            if (suggested != nullptr) suggested -> SetIsCommentOut();
+        }
     }
 
     if (parameterIsFound)
@@ -2006,6 +2161,9 @@ LKParameter *LKParameterContainer::FindPar(TString givenName, bool terminateIfNu
     {
         if (parameter) {
             auto parName = parameter -> GetName();
+            // Legacy skip is limited to RunIDRange on purpose: AddParameterContainer copies
+            // the legacy flag from merged files (e.g. a run's .root), so skipping every legacy
+            // parameter here hides values that only exist as legacy copies. Last match wins anyway.
             if (TString(parName).Index("RunIDRange")>0)
             if (parameter -> IsLegacy())
                 continue;
@@ -2031,6 +2189,11 @@ LKParameter *LKParameterContainer::FindPar(TString givenName, bool terminateIfNu
         if (parameterIsFound) line = Form("%s",parameterFound->GetLine().Data());
         else                  line = Form("%s",givenName.Data());
         fCollectedParameterContainer -> AddLine(line);
+        if (!parameterIsFound) {
+            // Not set by the user: write the suggestion commented out so the next run behaves the same.
+            auto suggested = fCollectedParameterContainer -> FindPar(givenName);
+            if (suggested != nullptr) suggested -> SetIsCommentOut();
+        }
     }
 
     if (parameterIsFound)
@@ -2061,8 +2224,8 @@ void LKParameterContainer::PrintCollection(TString fileName)
     fCollectedParameterContainer -> Sort();
     if (fileName.IsNull() || fileName=="print")
         fCollectedParameterContainer -> Print("raw:idx:parcm:lcm");
-    else
-        fCollectedParameterContainer -> SaveAs(fileName);
+    else // raw: keep {lilak_data}, e{RUN} and other references instead of this machine's values
+        fCollectedParameterContainer -> SaveAs(fileName, "raw:parcm");
 }
 
 LKCut* LKParameterContainer::GetParCut(TString name)
